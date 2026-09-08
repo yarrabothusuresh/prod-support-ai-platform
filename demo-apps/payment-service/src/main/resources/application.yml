@@ -1,0 +1,26 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: payment-service
+
+prod-support:
+  enabled: true
+  application:
+    name: payment-service
+    team: payments
+    description: Demo payment processing service
+    environment: local
+  diagnostics:
+    health: true
+    metrics: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
