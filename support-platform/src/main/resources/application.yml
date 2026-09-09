@@ -8,7 +8,7 @@ spring:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/prod_support}
     username: ${SPRING_DATASOURCE_USERNAME:prod_support}
     password: ${SPRING_DATASOURCE_PASSWORD:prod_support}
-    driver-class-name: org.postgresql.Driver
+    driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:org.postgresql.Driver}
   jpa:
     hibernate:
       ddl-auto: validate
@@ -19,6 +19,22 @@ spring:
   flyway:
     enabled: true
     baseline-on-migrate: true
+  ai:
+    ollama:
+      base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+      chat:
+        options:
+          model: ${OLLAMA_CHAT_MODEL:llama3:latest}
+          temperature: 0.2
+
+prod-support:
+  ai:
+    provider: ollama
+    model: ${OLLAMA_CHAT_MODEL:llama3:latest}
+    base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+    timeout-seconds: ${AI_TIMEOUT_SECONDS:180}
+    log-prompt: false
+    context-timeout-seconds: 3
 
 management:
   endpoints:

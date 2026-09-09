@@ -81,6 +81,18 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
     }
 
+    @ExceptionHandler(AiServiceUnavailableException.class)
+    public ResponseEntity<ErrorResponse> handleAiServiceUnavailable(AiServiceUnavailableException ex, HttpServletRequest request) {
+        log.warn("AI service unavailable for {}: {}", request.getRequestURI(), ex.getMessage());
+        ErrorResponse errorResponse = new ErrorResponse(
+                HttpStatus.SERVICE_UNAVAILABLE.value(),
+                HttpStatus.SERVICE_UNAVAILABLE.getReasonPhrase(),
+                ex.getMessage(),
+                request.getRequestURI()
+        );
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(errorResponse);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGeneralException(Exception ex, HttpServletRequest request) {
         log.error("Unhandled error processing request to {}: {}", request.getRequestURI(), ex.getMessage(), ex);
