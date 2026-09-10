@@ -38,8 +38,8 @@ class ApplicationContextServiceTest {
     }
 
     @Test
-    @DisplayName("Should collect UP status for both support info and actuator health when endpoints are healthy")
-    void shouldCollectBothEndpointsSuccessfully() {
+    @DisplayName("Should collect UP status for all endpoints when services are healthy")
+    void shouldCollectAllEndpointsSuccessfully() {
         server.enqueue(new MockResponse()
                 .setHeader("Content-Type", "application/json")
                 .setBody("{\"applicationName\":\"payment-service\",\"status\":\"UP\"}"));
@@ -47,6 +47,14 @@ class ApplicationContextServiceTest {
         server.enqueue(new MockResponse()
                 .setHeader("Content-Type", "application/json")
                 .setBody("{\"status\":\"UP\"}"));
+
+        server.enqueue(new MockResponse()
+                .setHeader("Content-Type", "application/json")
+                .setBody("{\"applicationName\":\"payment-service\",\"errors\":[{\"level\":\"ERROR\",\"type\":\"NullPointer\",\"message\":\"Something failed\"}]}"));
+
+        server.enqueue(new MockResponse()
+                .setHeader("Content-Type", "application/json")
+                .setBody("{\"applicationName\":\"payment-service\",\"dependencies\":[{\"name\":\"postgres-db\",\"type\":\"DATABASE\",\"status\":\"UP\"}]}"));
 
         String baseUrl = server.url("/").toString();
 
@@ -59,6 +67,12 @@ class ApplicationContextServiceTest {
         assertThat(context.actuatorStatus()).isEqualTo("UP");
         assertThat(context.supportInfoAvailable()).isTrue();
         assertThat(context.healthAvailable()).isTrue();
+        assertThat(context.errorsAvailable()).isTrue();
+        assertThat(context.dependenciesAvailable()).isTrue();
+        assertThat(context.recentErrors()).hasSize(1);
+        assertThat(context.recentErrors().get(0).type()).isEqualTo("NullPointer");
+        assertThat(context.dependencies()).hasSize(1);
+        assertThat(context.dependencies().get(0).name()).isEqualTo("postgres-db");
         assertThat(context.warnings()).isEmpty();
     }
 
@@ -73,6 +87,14 @@ class ApplicationContextServiceTest {
                 .setResponseCode(500)
                 .setBody("Internal Server Error"));
 
+        server.enqueue(new MockResponse()
+                .setHeader("Content-Type", "application/json")
+                .setBody("{\"applicationName\":\"payment-service\",\"errors\":[]}"));
+
+        server.enqueue(new MockResponse()
+                .setHeader("Content-Type", "application/json")
+                .setBody("{\"applicationName\":\"payment-service\",\"dependencies\":[]}"));
+
         String baseUrl = server.url("/").toString();
 
         ApplicationSupportContext context = contextService.collectContext(
@@ -83,6 +105,8 @@ class ApplicationContextServiceTest {
         assertThat(context.supportInfoAvailable()).isTrue();
         assertThat(context.actuatorStatus()).isEqualTo("UNKNOWN");
         assertThat(context.healthAvailable()).isFalse();
+        assertThat(context.errorsAvailable()).isTrue();
+        assertThat(context.dependenciesAvailable()).isTrue();
         assertThat(context.warnings()).hasSize(1);
         assertThat(context.warnings().get(0)).contains("Unable to retrieve actuator health");
     }
@@ -98,6 +122,14 @@ class ApplicationContextServiceTest {
                 .setHeader("Content-Type", "application/json")
                 .setBody("{\"status\":\"UP\"}"));
 
+        server.enqueue(new MockResponse()
+                .setHeader("Content-Type", "application/json")
+                .setBody("{\"applicationName\":\"payment-service\",\"errors\":[]}"));
+
+        server.enqueue(new MockResponse()
+                .setHeader("Content-Type", "application/json")
+                .setBody("{\"applicationName\":\"payment-service\",\"dependencies\":[]}"));
+
         String baseUrl = server.url("/").toString();
 
         ApplicationSupportContext context = contextService.collectContext(
@@ -108,8 +140,44 @@ class ApplicationContextServiceTest {
         assertThat(context.supportInfoAvailable()).isFalse();
         assertThat(context.actuatorStatus()).isEqualTo("UP");
         assertThat(context.healthAvailable()).isTrue();
+        assertThat(context.errorsAvailable()).isTrue();
+        assertThat(context.dependenciesAvailable()).isTrue();
         assertThat(context.warnings()).hasSize(1);
         assertThat(context.warnings().get(0)).contains("Unable to retrieve support info");
+    }
+
+    @Test
+    @DisplayName("Should handle partial failure when diagnostics endpoints return 404 or fail")
+    void shouldHandleDiagnosticsEndpointsFailureResiliently() {
+        server.enqueue(new MockResponse()
+                .setHeader("Content-Type", "application/json")
+                .setBody("{\"applicationName\":\"payment-service\",\"status\":\"UP\"}"));
+
+        server.enqueue(new MockResponse()
+                .setHeader("Content-Type", "application/json")
+                .setBody("{\"status\":\"UP\"}"));
+
+        server.enqueue(new MockResponse()
+                .setResponseCode(404)
+                .setBody("Not Found"));
+
+        server.enqueue(new MockResponse()
+                .setResponseCode(500)
+                .setBody("Internal Server Error"));
+
+        String baseUrl = server.url("/").toString();
+
+        ApplicationSupportContext context = contextService.collectContext(
+                "payment-service", "payments", "local", "Payment Service", baseUrl, null, null
+        );
+
+        assertThat(context.supportStatus()).isEqualTo("UP");
+        assertThat(context.actuatorStatus()).isEqualTo("UP");
+        assertThat(context.errorsAvailable()).isFalse();
+        assertThat(context.dependenciesAvailable()).isFalse();
+        assertThat(context.warnings()).hasSize(2);
+        assertThat(context.warnings().get(0)).contains("Unable to retrieve recent errors");
+        assertThat(context.warnings().get(1)).contains("Unable to retrieve dependencies");
     }
 
     @Test
@@ -126,6 +194,8 @@ class ApplicationContextServiceTest {
         assertThat(context.actuatorStatus()).isEqualTo("UNKNOWN");
         assertThat(context.supportInfoAvailable()).isFalse();
         assertThat(context.healthAvailable()).isFalse();
-        assertThat(context.warnings()).hasSize(2);
+        assertThat(context.errorsAvailable()).isFalse();
+        assertThat(context.dependenciesAvailable()).isFalse();
+        assertThat(context.warnings()).hasSize(4);
     }
 }

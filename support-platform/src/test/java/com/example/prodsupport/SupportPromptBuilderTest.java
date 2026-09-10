@@ -1,11 +1,14 @@
 package com.example.prodsupport;
 
 import com.example.prodsupport.ai.model.ApplicationSupportContext;
+import com.example.prodsupport.ai.model.SupportDependencyDto;
+import com.example.prodsupport.ai.model.SupportErrorDto;
 import com.example.prodsupport.ai.prompt.SupportPromptBuilder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.List;
 
@@ -91,5 +94,41 @@ class SupportPromptBuilderTest {
         assertThat(userPrompt)
                 .contains("None (All telemetry endpoints responded normally)")
                 .contains("Why is auth failing?");
+    }
+
+    @Test
+    @DisplayName("User prompt should format recent errors and downstream dependencies")
+    void userPromptShouldFormatErrorsAndDependencies() {
+        ApplicationSupportContext context = new ApplicationSupportContext(
+                "payment-service",
+                "payments",
+                "prod",
+                "Payment API",
+                "http://payment-prod:8081",
+                "UP",
+                "UP",
+                true,
+                true,
+                OffsetDateTime.now(),
+                List.of(),
+                List.of(
+                        new SupportErrorDto(Instant.parse("2026-09-10T12:00:00Z"), "ERROR", "DatabaseTimeoutException", "Connection to primary replica timed out")
+                ),
+                List.of(
+                        new SupportDependencyDto("postgres-db", "DATABASE", "DOWN"),
+                        new SupportDependencyDto("notification-service", "HTTP", "UP")
+                ),
+                true,
+                true
+        );
+
+        String prompt = promptBuilder.buildUserPrompt(context, "Why are payments failing?");
+
+        assertThat(prompt)
+                .contains("=== RECENT APPLICATION ERRORS ===")
+                .contains("DatabaseTimeoutException: Connection to primary replica timed out")
+                .contains("=== DOWNSTREAM DEPENDENCY HEALTH ===")
+                .contains("- postgres-db (Type: DATABASE): status=DOWN")
+                .contains("- notification-service (Type: HTTP): status=UP");
     }
 }

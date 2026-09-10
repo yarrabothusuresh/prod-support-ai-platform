@@ -15,6 +15,19 @@ prod-support:
   diagnostics:
     health: true
     metrics: true
+    errors: true
+    dependencies: true
+    max-error-retention: 100
+  dependencies:
+    - name: postgres-db
+      type: DATABASE
+      status: UP
+    - name: notification-service
+      type: HTTP
+      status: UP
+    - name: fraud-detection-api
+      type: HTTP
+      status: UP
 
 management:
   endpoints:

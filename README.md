@@ -13,12 +13,11 @@ The **AI Production Support Platform** is an enterprise-grade platform designed 
   * **Onboarded Sample Microservice**: `payment-service` running on port 8081.
   * **Central Management Platform**: `support-platform` running on port 8080 with PostgreSQL persistence, Flyway schema migrations, and active connectivity probing.
 
-* **Day 2 Milestone (Local AI Integration)**:
-  * **Spring AI + Ollama Integration**: Added local AI capabilities exclusively to `support-platform` using Spring AI Milestone 3 (`1.0.0-M3`) and local Ollama (`http://localhost:11434`). The starter and demo microservices remain completely AI-agnostic.
-  * **Live Context Aggregation**: Dynamically resolves registered applications by `(appName, environment)` and collects live runtime telemetry from both `/support/info` and `/actuator/health`.
-  * **Anti-Hallucination Prompt Architecture**: Injects strict production support system instructions enforcing separation of verified facts from inferences (`FACT != INFERENCE`) and zero hallucination.
-  * **Structured JSON Output**: Guarantees consistent, parseable diagnostic responses (`applicationName`, `environment`, `summary`, `observedFacts`, `possibleCauses`, `recommendedChecks`, `confidence`, `warnings`).
-  * **AI Health Probe & Fault Tolerance**: Exposes `/api/ai/status` without throwing 500 when offline, accumulates non-blocking warnings on unreachable microservices, and yields clean `503 Service Unavailable` when Ollama is unreachable.
+* **Operational Diagnostics & Grounded AI Context**:
+  * **Sanitized In-Memory Error Store**: Reusable bounded ring-buffer (`RecentErrorStore`) in `support-agent-spring-boot-starter` capturing recent exceptions while automatically masking PII, passwords, bearer tokens, JDBC URLs, and truncating stack traces.
+  * **Dependency Health Probing & Fault Injection**: Standardized `/support/dependencies` endpoint supporting health probing and real-time fault simulation overrides (`DependencyHealthService`).
+  * **Deep Telemetry Ingestion in AI Platform**: `support-platform` dynamically ingests `/support/info`, `/actuator/health`, `/support/errors`, and `/support/dependencies`, feeding real ground-truth failure evidence into local Ollama prompts to eliminate hallucination.
+  * **Interactive Incident Simulation**: `payment-service` exposes `/api/payments/simulate/error` and `/api/payments/simulate/dependency` for rapid operational verification.
 
 ---
 
@@ -380,6 +379,28 @@ If Ollama is stopped or unreachable, `POST /api/support/chat` returns a clean, s
 
 ---
 
+### 7. Interactive Incident Simulation & Grounded AI Verification
+
+`payment-service` includes built-in incident simulation endpoints allowing you to test AI diagnostics:
+
+```powershell
+# 1. Inject a simulated database timeout error
+curl -X POST "http://localhost:8081/api/payments/simulate/error?type=DatabaseTimeoutException&message=Connection%20to%20postgres-db%20timed%20out%20after%203000ms&level=ERROR"
+
+# 2. Simulate downstream dependency outage
+curl -X POST "http://localhost:8081/api/payments/simulate/dependency?dependency=postgres-db&status=DOWN"
+
+# 3. Query the AI support assistant
+curl -X POST http://localhost:8080/api/support/chat `
+  -H "Content-Type: application/json" `
+  -d '{"applicationName": "payment-service", "environment": "local", "userQuestion": "Why are payments failing?"}'
+
+# 4. Clear simulated dependency outages
+curl -X DELETE "http://localhost:8081/api/payments/simulate/dependency"
+```
+
+---
+
 ## 8. Automated Test Suite
 
 All unit tests are **100% hermetic** and run without requiring an active Ollama process or live microservice:
@@ -389,11 +410,16 @@ mvn test
 ```
 
 ### Monorepo Test Summary
-* `support-agent-spring-boot-starter`: 2 tests (Properties binding, Actuator dynamic integration)
-* `demo-apps/payment-service`: 6 tests (App context, payments API, starter integration)
-* `support-platform`: 29 tests:
-  * `SupportPromptBuilderTest` (3 tests): Prompt construction, rule verification, context injection
-  * `ApplicationContextServiceTest` (4 tests with `MockWebServer`): Both endpoints UP, partial failure, host unreachable, timeouts
+* `support-agent-spring-boot-starter`: 13 tests:
+  * `RecentErrorStoreTest` (8 tests): Ring-buffer capacity, reverse-chronological retrieval, PII/secret masking (passwords, bearer tokens, auth headers, JDBC credentials, credit cards, emails, stack trace suppression)
+  * `SupportDiagnosticsEndpointTest` (1 test): Diagnostics controller, `/support/errors`, `/support/dependencies`, and override resolution
+  * `SupportInfoEndpointTest` (2 tests): Metadata endpoint & actuator health binding
+  * `SupportPropertiesTest` (2 tests): Configuration properties binding & validation
+* `demo-apps/payment-service`: 5 tests:
+  * Application context, payments API, `/support/info`, `/support/errors`, `/support/dependencies`, and incident simulation
+* `support-platform`: 31 tests:
+  * `SupportPromptBuilderTest` (4 tests): Anti-hallucination rules, telemetry, recent errors & dependency grounding
+  * `ApplicationContextServiceTest` (5 tests with `MockWebServer`): 4-way telemetry collection, resilient partial failures, host unreachable
   * `OllamaSupportAiClientTest` (6 tests with `MockWebServer`): Availability ping, markdown-wrapped JSON, direct JSON, fallback parsing
   * `AiStatusControllerTest` (2 tests with `MockMvc`): Online / offline reachability reporting
   * `SupportChatControllerTest` (4 tests with `MockMvc`): Success 200, Validation 400, Not Found 404, Offline 503
@@ -401,7 +427,7 @@ mvn test
 
 ---
 
-## 9. Day 3 Roadmap
+## 9. Next Milestones
 
 * **Diagnostic AI Tools / Function Calling**:
   * Add the first diagnostic AI tools for application health and recent application logs.

@@ -2,6 +2,8 @@ package com.example.prodsupport.ai.service;
 
 import com.example.prodsupport.ai.config.AiProperties;
 import com.example.prodsupport.ai.model.ApplicationSupportContext;
+import com.example.prodsupport.ai.model.SupportDependencyDto;
+import com.example.prodsupport.ai.model.SupportErrorDto;
 import com.example.prodsupport.domain.RegisteredApplication;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import org.slf4j.Logger;
@@ -120,8 +122,52 @@ public class ApplicationContextService {
             warnings.add("Unable to retrieve actuator health (" + errorMsg + ")");
         }
 
-        log.info("Completed context collection for '{}/{}': support={}, health={}, warnings={}",
-                applicationName, environment, supportStatus, actuatorStatus, warnings.size());
+        // 3. Fetch /support/errors
+        String targetErrorsUrl = normalizedBaseUrl + "/support/errors?limit=10";
+        List<SupportErrorDto> recentErrors = new ArrayList<>();
+        boolean errorsAvailable = false;
+        try {
+            log.debug("Calling support errors endpoint: {}", targetErrorsUrl);
+            SupportErrorsResponsePayload errorsPayload = restClient.get()
+                    .uri(targetErrorsUrl)
+                    .retrieve()
+                    .body(SupportErrorsResponsePayload.class);
+
+            if (errorsPayload != null && errorsPayload.getErrors() != null) {
+                recentErrors.addAll(errorsPayload.getErrors());
+            }
+            errorsAvailable = true;
+            log.debug("Support errors collected successfully: count={}", recentErrors.size());
+        } catch (Exception ex) {
+            String errorMsg = cleanErrorMessage(ex);
+            log.warn("Failed to collect support errors from {}: {}", targetErrorsUrl, errorMsg);
+            warnings.add("Unable to retrieve recent errors (" + errorMsg + ")");
+        }
+
+        // 4. Fetch /support/dependencies
+        String targetDependenciesUrl = normalizedBaseUrl + "/support/dependencies";
+        List<SupportDependencyDto> dependencies = new ArrayList<>();
+        boolean dependenciesAvailable = false;
+        try {
+            log.debug("Calling support dependencies endpoint: {}", targetDependenciesUrl);
+            SupportDependenciesResponsePayload depsPayload = restClient.get()
+                    .uri(targetDependenciesUrl)
+                    .retrieve()
+                    .body(SupportDependenciesResponsePayload.class);
+
+            if (depsPayload != null && depsPayload.getDependencies() != null) {
+                dependencies.addAll(depsPayload.getDependencies());
+            }
+            dependenciesAvailable = true;
+            log.debug("Support dependencies collected successfully: count={}", dependencies.size());
+        } catch (Exception ex) {
+            String errorMsg = cleanErrorMessage(ex);
+            log.warn("Failed to collect support dependencies from {}: {}", targetDependenciesUrl, errorMsg);
+            warnings.add("Unable to retrieve dependencies (" + errorMsg + ")");
+        }
+
+        log.info("Completed context collection for '{}/{}': support={}, health={}, errors={}, deps={}, warnings={}",
+                applicationName, environment, supportStatus, actuatorStatus, recentErrors.size(), dependencies.size(), warnings.size());
 
         return new ApplicationSupportContext(
                 applicationName,
@@ -134,7 +180,11 @@ public class ApplicationContextService {
                 supportInfoAvailable,
                 healthAvailable,
                 OffsetDateTime.now(),
-                warnings
+                warnings,
+                recentErrors,
+                dependencies,
+                errorsAvailable,
+                dependenciesAvailable
         );
     }
 
@@ -190,6 +240,50 @@ public class ApplicationContextService {
 
         public void setStatus(String status) {
             this.status = status;
+        }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class SupportErrorsResponsePayload {
+        private String applicationName;
+        private List<SupportErrorDto> errors;
+
+        public String getApplicationName() {
+            return applicationName;
+        }
+
+        public void setApplicationName(String applicationName) {
+            this.applicationName = applicationName;
+        }
+
+        public List<SupportErrorDto> getErrors() {
+            return errors;
+        }
+
+        public void setErrors(List<SupportErrorDto> errors) {
+            this.errors = errors;
+        }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public static class SupportDependenciesResponsePayload {
+        private String applicationName;
+        private List<SupportDependencyDto> dependencies;
+
+        public String getApplicationName() {
+            return applicationName;
+        }
+
+        public void setApplicationName(String applicationName) {
+            this.applicationName = applicationName;
+        }
+
+        public List<SupportDependencyDto> getDependencies() {
+            return dependencies;
+        }
+
+        public void setDependencies(List<SupportDependencyDto> dependencies) {
+            this.dependencies = dependencies;
         }
     }
 }

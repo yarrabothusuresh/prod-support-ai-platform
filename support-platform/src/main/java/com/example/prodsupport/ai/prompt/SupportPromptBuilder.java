@@ -1,6 +1,8 @@
 package com.example.prodsupport.ai.prompt;
 
 import com.example.prodsupport.ai.model.ApplicationSupportContext;
+import com.example.prodsupport.ai.model.SupportDependencyDto;
+import com.example.prodsupport.ai.model.SupportErrorDto;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -52,6 +54,34 @@ public class SupportPromptBuilder {
                 .append(context.supportInfoAvailable() ? " (Endpoint Reachable)" : " (Endpoint Unreachable)").append("\n");
         sb.append("Actuator Health Status: ").append(context.actuatorStatus())
                 .append(context.healthAvailable() ? " (Endpoint Reachable)" : " (Endpoint Unreachable)").append("\n");
+        sb.append("\n");
+
+        sb.append("=== RECENT APPLICATION ERRORS ===\n");
+        if (!context.errorsAvailable()) {
+            sb.append("Unavailable (Endpoint unreachable or errors diagnostics disabled)\n");
+        } else if (context.recentErrors().isEmpty()) {
+            sb.append("No recent errors recorded (Clean execution window)\n");
+        } else {
+            for (SupportErrorDto error : context.recentErrors()) {
+                sb.append("- [").append(error.timestamp() != null ? error.timestamp() : "N/A").append("] ")
+                        .append("[").append(error.level() != null ? error.level() : "ERROR").append("] ")
+                        .append(error.type() != null ? error.type() : "Exception").append(": ")
+                        .append(error.message() != null ? error.message() : "No message").append("\n");
+            }
+        }
+        sb.append("\n");
+
+        sb.append("=== DOWNSTREAM DEPENDENCY HEALTH ===\n");
+        if (!context.dependenciesAvailable()) {
+            sb.append("Unavailable (Endpoint unreachable or dependencies diagnostics disabled)\n");
+        } else if (context.dependencies().isEmpty()) {
+            sb.append("No downstream dependencies configured\n");
+        } else {
+            for (SupportDependencyDto dep : context.dependencies()) {
+                sb.append("- ").append(dep.name()).append(" (Type: ").append(dep.type()).append("): ")
+                        .append("status=").append(dep.status()).append("\n");
+            }
+        }
         sb.append("\n");
 
         sb.append("=== CONTEXT WARNINGS ===\n");
