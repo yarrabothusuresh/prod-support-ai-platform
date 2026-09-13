@@ -25,6 +25,7 @@ public class DiagnosticToolRegistry {
     private final HealthAiTool healthAiTool;
     private final RecentErrorsAiTool recentErrorsAiTool;
     private final DependencyAiTool dependencyAiTool;
+    private final KnowledgeBaseAiTool knowledgeBaseAiTool;
     private final ObjectMapper objectMapper;
 
     private final Map<String, FunctionCallback> callbacks = new LinkedHashMap<>();
@@ -33,11 +34,13 @@ public class DiagnosticToolRegistry {
                                   HealthAiTool healthAiTool,
                                   RecentErrorsAiTool recentErrorsAiTool,
                                   DependencyAiTool dependencyAiTool,
+                                  KnowledgeBaseAiTool knowledgeBaseAiTool,
                                   ObjectMapper objectMapper) {
         this.applicationInfoAiTool = applicationInfoAiTool;
         this.healthAiTool = healthAiTool;
         this.recentErrorsAiTool = recentErrorsAiTool;
         this.dependencyAiTool = dependencyAiTool;
+        this.knowledgeBaseAiTool = knowledgeBaseAiTool;
         this.objectMapper = objectMapper;
 
         initCallbacks();
@@ -81,6 +84,15 @@ public class DiagnosticToolRegistry {
                 .withObjectMapper(objectMapper)
                 .build();
         callbacks.put(DependencyAiTool.TOOL_NAME, depsCallback);
+
+        // 5. search_knowledge_base
+        FunctionCallback knowledgeCallback = FunctionCallbackWrapper.builder(knowledgeBaseAiTool)
+                .withName(KnowledgeBaseAiTool.TOOL_NAME)
+                .withDescription(KnowledgeBaseAiTool.TOOL_DESCRIPTION)
+                .withInputType(KnowledgeSearchToolRequest.class)
+                .withObjectMapper(objectMapper)
+                .build();
+        callbacks.put(KnowledgeBaseAiTool.TOOL_NAME, knowledgeCallback);
 
         log.info("Successfully registered {} diagnostic tools: {}", callbacks.size(), callbacks.keySet());
     }

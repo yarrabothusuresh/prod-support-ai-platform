@@ -26,6 +26,16 @@ spring:
         options:
           model: ${OLLAMA_CHAT_MODEL:llama3:latest}
           temperature: 0.2
+      embedding:
+        options:
+          model: ${OLLAMA_EMBEDDING_MODEL:nomic-embed-text}
+    vectorstore:
+      pgvector:
+        initialize-schema: false
+        schema-validation: false
+        dimensions: 768
+        distance-type: COSINE_DISTANCE
+        index-type: HNSW
 
 prod-support:
   ai:
@@ -41,6 +51,16 @@ prod-support:
       enabled: true
       deterministic-fallback: true
       max-tool-calls: 6
+  knowledge:
+    base-directory: ./documents
+    chunk-size: 800
+    chunk-overlap: 120
+    max-context-chars: 12000
+    default-top-k: 5
+    max-top-k: 10
+    minimum-similarity: 0.60
+    embedding-model: ${OLLAMA_EMBEDDING_MODEL:nomic-embed-text}
+    embedding-dimensions: 768
   diagnostics:
     timeout: 3s
 

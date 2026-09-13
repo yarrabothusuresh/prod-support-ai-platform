@@ -23,6 +23,7 @@ public class InvestigationContext {
     private final List<ToolExecutionResult<?>> toolResults = Collections.synchronizedList(new ArrayList<>());
     private final List<String> evidence = Collections.synchronizedList(new ArrayList<>());
     private final List<String> warnings = Collections.synchronizedList(new ArrayList<>());
+    private final java.util.Map<String, Object> gatheredEvidence = Collections.synchronizedMap(new java.util.LinkedHashMap<>());
     private final AtomicInteger executionCount = new AtomicInteger(0);
 
     public InvestigationContext(String applicationName, String environment, String question, int maxToolCalls) {
@@ -111,5 +112,15 @@ public class InvestigationContext {
 
     public List<String> getWarnings() {
         return new ArrayList<>(warnings);
+    }
+
+    public java.util.Map<String, Object> getGatheredEvidence() {
+        return Collections.unmodifiableMap(gatheredEvidence);
+    }
+
+    public void putEvidence(String key, Object value) {
+        if (key != null && value != null) {
+            gatheredEvidence.put(key, value);
+        }
     }
 }

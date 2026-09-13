@@ -4,6 +4,7 @@ import com.example.prodsupport.ai.tools.ApplicationInfoAiTool;
 import com.example.prodsupport.ai.tools.DependencyAiTool;
 import com.example.prodsupport.ai.tools.DiagnosticToolRegistry;
 import com.example.prodsupport.ai.tools.HealthAiTool;
+import com.example.prodsupport.ai.tools.KnowledgeBaseAiTool;
 import com.example.prodsupport.ai.tools.RecentErrorsAiTool;
 import com.example.prodsupport.ai.tools.security.ToolAllowlist;
 import org.junit.jupiter.api.DisplayName;
@@ -24,8 +25,8 @@ class DiagnosticToolRegistrationTest {
     private DiagnosticToolRegistry toolRegistry;
 
     @Test
-    @DisplayName("Verify all 4 approved diagnostic tools are registered in tool registry")
-    void shouldRegisterAllFourApprovedTools() {
+    @DisplayName("Verify all 5 approved diagnostic tools are registered in tool registry")
+    void shouldRegisterAllFiveApprovedTools() {
         Set<String> registeredNames = toolRegistry.getRegisteredToolNames();
 
         assertThat(registeredNames)
@@ -33,11 +34,12 @@ class DiagnosticToolRegistrationTest {
                         ToolAllowlist.TOOL_GET_APPLICATION_INFO,
                         ToolAllowlist.TOOL_CHECK_APPLICATION_HEALTH,
                         ToolAllowlist.TOOL_GET_RECENT_ERRORS,
-                        ToolAllowlist.TOOL_CHECK_DEPENDENCIES
+                        ToolAllowlist.TOOL_CHECK_DEPENDENCIES,
+                        ToolAllowlist.TOOL_SEARCH_KNOWLEDGE_BASE
                 );
 
         List<FunctionCallback> callbacks = toolRegistry.getAllCallbacks();
-        assertThat(callbacks).hasSize(4);
+        assertThat(callbacks).hasSize(5);
     }
 
     @Test
@@ -62,6 +64,11 @@ class DiagnosticToolRegistrationTest {
         assertThat(deps).isNotNull();
         assertThat(deps.getName()).isEqualTo(DependencyAiTool.TOOL_NAME);
         assertThat(deps.getDescription()).contains("downstream dependency health");
+
+        FunctionCallback knowledge = toolRegistry.getCallback(ToolAllowlist.TOOL_SEARCH_KNOWLEDGE_BASE);
+        assertThat(knowledge).isNotNull();
+        assertThat(knowledge.getName()).isEqualTo(KnowledgeBaseAiTool.TOOL_NAME);
+        assertThat(knowledge.getDescription()).contains("knowledge base");
     }
 
     @Test
@@ -71,6 +78,7 @@ class DiagnosticToolRegistrationTest {
         assertThat(ToolAllowlist.isAllowed("check_application_health")).isTrue();
         assertThat(ToolAllowlist.isAllowed("get_recent_errors")).isTrue();
         assertThat(ToolAllowlist.isAllowed("check_dependencies")).isTrue();
+        assertThat(ToolAllowlist.isAllowed("search_knowledge_base")).isTrue();
 
         // Non-approved tools rejected
         assertThat(ToolAllowlist.isAllowed("restart_application")).isFalse();

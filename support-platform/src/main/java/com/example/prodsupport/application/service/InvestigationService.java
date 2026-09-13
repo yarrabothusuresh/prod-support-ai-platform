@@ -290,6 +290,16 @@ public class InvestigationService {
 
         String confidence = parsed.confidence != null ? parsed.confidence.toUpperCase() : "MEDIUM";
 
+        List<com.example.prodsupport.knowledge.model.KnowledgeSource> sources = new ArrayList<>();
+        Object knowledgeEvidenceObj = context.getGatheredEvidence().get("knowledgeSearchResult");
+        if (knowledgeEvidenceObj instanceof com.example.prodsupport.ai.tools.model.KnowledgeSearchResultData searchData) {
+            if (searchData.sources() != null) {
+                sources.addAll(searchData.sources());
+            }
+        }
+
+        List<String> guidance = parsed.knowledgeGuidance != null ? parsed.knowledgeGuidance : Collections.emptyList();
+
         return new SupportInvestigationResponse(
                 app.getApplicationName(),
                 app.getEnvironment(),
@@ -297,6 +307,8 @@ public class InvestigationService {
                 facts,
                 likelyCauses,
                 recommendedChecks,
+                guidance,
+                sources,
                 confidence,
                 realToolsUsed,
                 realExecutionCount,
@@ -380,6 +392,7 @@ public class InvestigationService {
         public List<String> observedFacts = new ArrayList<>();
         public List<String> likelyCauses = new ArrayList<>();
         public List<String> recommendedChecks = new ArrayList<>();
+        public List<String> knowledgeGuidance = new ArrayList<>();
         public String confidence = "MEDIUM";
     }
 }

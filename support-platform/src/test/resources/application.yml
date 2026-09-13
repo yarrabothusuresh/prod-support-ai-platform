@@ -12,4 +12,11 @@ spring:
     open-in-view: false
   flyway:
     enabled: true
-    locations: classpath:db/migration
+    locations: classpath:db/migration/h2
+  autoconfigure:
+    exclude:
+      - org.springframework.ai.autoconfigure.vectorstore.pgvector.PgVectorStoreAutoConfiguration
+
+prod-support:
+  knowledge:
+    base-directory: ./documents

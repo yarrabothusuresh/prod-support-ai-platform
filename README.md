@@ -1,6 +1,6 @@
 # AI Production Support Platform (`prod-support-ai-platform`)
 
-> **Day 4 Milestone: True Agentic AI Tool Calling with Spring AI & Ollama**
+> **Day 5 Milestone: Knowledge Base + RAG with PostgreSQL pgvector & Ollama Embeddings**
 
 ---
 
@@ -23,63 +23,100 @@ The **AI Production Support Platform** is an enterprise-grade platform designed 
   * **Autonomous Tool Selection**: The LLM autonomously inspects support questions and dynamically decides *which* diagnostic tools to execute (`get_application_info`, `check_application_health`, `get_recent_errors`, `check_dependencies`).
   * **Safe & Strict Read-Only Boundaries**: Tools are 100% read-only and allowlisted. No arbitrary URL invocation (anti-SSRF), no DB mutations, no process/container restarts, no shell execution.
   * **Audit Logging & Tamper-Proof Metadata**: Every tool execution is audited (`AI_TOOL_EXECUTION tool=... application=... environment=... success=... durationMs=...`). `toolsUsed` is populated strictly from Java runtime execution metadata, never from LLM self-reporting.
-  * **Loop Limit & Isolated Timeouts**: Enforced per-investigation loop ceiling (`ai.tool-calling.max-tool-calls=5`) and tool timeout (`ai.diagnostic-timeout-seconds=3`). Failure or slowness of one tool does not abort the investigation.
+  * **Loop Limit & Isolated Timeouts**: Enforced per-investigation loop ceiling (`ai.tool-calling.max-tool-calls=6`) and tool timeout (`ai.diagnostic-timeout-seconds=3`). Failure or slowness of one tool does not abort the investigation.
   * **Safe Deterministic Fallback**: If Ollama is offline or fails, or if deterministic fallback is enabled, the platform executes safe deterministic diagnostics and synthesizes an answer without crashing.
+
+* **Day 5 Knowledge Base + RAG with PostgreSQL pgvector**:
+  * **Local Vector Store with pgvector**: PostgreSQL 16 with `pgvector` extension enabled via Flyway migrations (`V2__enable_pgvector_and_create_knowledge_tables.sql`), storing 768-dimensional embeddings with HNSW cosine distance indexing and JSONB metadata GIN indexing.
+  * **Dual Model Pipeline**: Separate models for Chat (`llama3:latest` / `qwen2.5`) and Embeddings (`nomic-embed-text`), avoiding context pollution and embedding mismatch.
+  * **Document Ingestion & Chunking Engine**: Ingestion pipeline (`KnowledgeIngestionService`, `DocumentChunker`) with sliding window chunking (default 800 chars, 120 overlap), rich metadata stamping (`documentId`, `applicationName`, `environment`, `documentType`, `title`, `source`, `chunkNumber`, `version`, `owner`), content hashing (SHA-256) for deduplication, and automated secret scanning (`SecretDetector`).
+  * **Strict Path Traversal Protection**: `SafeDocumentReader` enforces that only documents under the configured `./documents` base directory can be accessed.
+  * **Unified Knowledge Q&A API**: Dedicated endpoint `POST /api/support/knowledge-chat` for grounded runbook, architecture, and incident Q&A with strict citations and anti-hallucination rules.
+  * **5th AI Tool (`search_knowledge_base`)**: Strictly read-only tool registered in Spring AI allowlist. The LLM can autonomously invoke knowledge retrieval during live incident investigations to combine live runtime telemetry with runbook remediation steps.
+  * **Historical Incident RCA Disclaimer**: Automated safety disclaimer attached whenever past incident RCAs or postmortems are retrieved, distinguishing past root causes from current live issues.
 
 ---
 
-## 2. Day 4 Agentic Tool Architecture
+## 2. Day 5 Knowledge Base & Diagnostic Architecture
 
 ```text
-+-------------------------------------------------------------------------------------------------------+
-|                                           Support Engineer                                            |
-+-------------------------------------------------------------------------------------------------------+
-                                                    │
-                 POST /api/support/investigate      │ GET /api/ai/status
-                 POST /api/support/chat             │
-                                                    ▼
-+-------------------------------------------------------------------------------------------------------+
-|                                     support-platform (Port 8080)                                      |
-|                                                                                                       |
-|  [Controllers]                                                                                        |
-|    - SupportInvestigationController (/api/support/investigate)                                        |
-|    - SupportChatController          (/api/support/chat - legacy Q&A)                                  |
-|    - AiStatusController             (/api/ai/status)                                                  |
-|    - ApplicationController          (/api/applications)                                               |
-|                                                                                                       |
-|  [Agentic Investigation Orchestration]                                                               |
-|    - InvestigationService: Initializes InvestigationContext, configures OllamaOptions with tools,    |
-|      invokes OllamaChatModel, extracts audited toolsUsed, gathers warnings & evidence.               |
-|                                                                                                       |
-|  [Spring AI Tool Registry & Callback Wrappers]                                                        |
-|    - DiagnosticToolRegistry: Registers FunctionCallbackWrappers with Spring AI for:                   |
-|        * get_application_info                                                                         |
-|        * check_application_health                                                                     |
-|        * get_recent_errors                                                                            |
-|        * check_dependencies                                                                           |
-|                                                                                                       |
-|  [Security & Safety Layer]                                                                            |
-|    - ToolAllowlist: Enforces only allowlisted diagnostic tools can be registered                      |
-|    - ApplicationAccessValidator: Validates registered app exists, environment matches, app enabled    |
-|    - Input Bounds: Error limit clamped between 1 and 50 (default 10)                                  |
-|    - Infinite Loop Guard: InvestigationContext caps tool calls at maxToolCalls (default 5)            |
-|    - ToolExecutionAuditor: Structured logging of tool execution, duration, status, parameters         |
-|                                                                                                       |
-|  [Diagnostic Service Client]                                                                          |
-|    - DiagnosticService: Isolated HTTP RestClient with timeout (default 3s) and secret redaction       |
-+-------------------+-----------------------------------+-----------------------------------------------+
-                    │                                   │                               │
-                    │ JDBC                              │ Read-Only HTTP GET            │ Function Calling
-                    ▼                                   ▼                               ▼
-         +--------------------+              +---------------------+         +----------------------+
-         |    PostgreSQL      |              |   payment-service   |         |     Local Ollama     |
-         |    (Port 5432)     |              |     (Port 8081)     |         |     (Port 11434)     |
-         |                    |              |                     |         |                      |
-         | registered_app     |              | - /support/info     |         | - llama3.1 / llama3.2|
-         | table              |              | - /actuator/health  |         | - Function Call Loop |
-         +--------------------+              | - /support/errors   |         +----------------------+
-                                             | - /support/dep...   |
-                                             +---------------------+
++-----------------------------------------------------------------------------------------------------------------------+
+|                                                   Support Engineer                                                    |
++-----------------------------------------------------------------------------------------------------------------------+
+                                                            │
+                         POST /api/support/investigate      │ POST /api/support/knowledge-chat
+                         POST /api/knowledge/ingest-all     │ POST /api/knowledge/search
+                                                            ▼
++-----------------------------------------------------------------------------------------------------------------------+
+|                                             support-platform (Port 8080)                                              |
+|                                                                                                                       |
+|  [Controllers]                                                                                                        |
+|    - SupportInvestigationController (/api/support/investigate - Combined Agentic Diagnosis & Runbook Guidance)        |
+|    - SupportKnowledgeChatController (/api/support/knowledge-chat - Grounded Runbook / Architecture Q&A)               |
+|    - KnowledgeController            (/api/knowledge/* - Document Ingestion, Semantic Search, Status)                   |
+|    - SupportChatController          (/api/support/chat - Day 3 Rule-based Support Chat)                               |
+|    - AiStatusController             (/api/ai/status)                                                                  |
+|    - ApplicationController          (/api/applications)                                                               |
+|                                                                                                                       |
+|  [Knowledge Base & Ingestion Engine]                                                                                  |
+|    - SafeDocumentReader: Base-directory validation, strict path traversal defense (blocks ../, \.., absolute escapes)  |
+|    - SecretDetector: Pre-ingestion regex scanner (rejects passwords, bearer tokens, private keys, secrets)           |
+|    - ContentHasher: SHA-256 deduplication and change detection                                                       |
+|    - DocumentChunker: 800-char chunks, 120 overlap, metadata stamps (docId, app, env, type, title, source, chunkNo)  |
+|    - KnowledgeRetrievalService: Similarity search, app/env scoping, document-type filtering, context capping          |
+|    - SimilarIncidentService: Past incident RCA retrieval with automated historical safety disclaimer                  |
+|                                                                                                                       |
+|  [Spring AI Tool Registry & Callback Wrappers - 5 Approved Read-Only Tools]                                           |
+|    1. get_application_info        - Microservice metadata, URLs, contact team                                          |
+|    2. check_application_health    - Live Actuator health status                                                        |
+|    3. get_recent_errors           - Live ring-buffer exceptions (PII masked)                                           |
+|    4. check_dependencies          - Downstream dependencies & circuit breakers                                         |
+|    5. search_knowledge_base       - Semantically searches approved runbooks, RCAs, architecture specs                  |
+|                                                                                                                       |
+|  [Security & Safety Boundaries]                                                                                       |
+|    - ToolAllowlist: Enforces strictly approved 5 read-only tools                                                      |
+|    - ApplicationAccessValidator: Anti-SSRF boundary check                                                             |
+|    - Infinite Loop Guard: InvestigationContext caps diagnostic steps at maxToolCalls (default 6)                      |
+|    - ToolExecutionAuditor: Audit logs recorded for every tool call with duration, parameters, and status              |
++-------------------+---------------------------------------+-----------------------------------+-----------------------+
+                    │                                       │                                   │
+                    │ JDBC                                  │ Read-Only HTTP GET                │ HTTP REST
+                    ▼                                       ▼                                   ▼
+         +--------------------+                  +---------------------+             +----------------------+
+         |    PostgreSQL      |                  |   payment-service   |             |     Local Ollama     |
+         |    (Port 5432)     |                  |     (Port 8081)     |             |     (Port 11434)     |
+         |                    |                  |                     |             |                      |
+         | - registered_app   |                  | - /support/info     |             | Chat:                |
+         | - knowledge_doc    |                  | - /actuator/health  |             |  - llama3:latest     |
+         | - vector_store     |                  | - /support/errors   |             | Embedding:           |
+         |   (pgvector, HNSW) |                  | - /support/dep...   |             |  - nomic-embed-text  |
+         +--------------------+                  +---------------------+             +----------------------+
+```
+
+---
+
+## 2.1 Live Diagnostics vs. Knowledge Base
+
+In production support, an effective AI platform must combine **real-time dynamic facts** with **curated institutional knowledge**:
+
+| Feature / Dimension | Live Diagnostics (Days 1–4) | Knowledge Base / RAG (Day 5) |
+| :--- | :--- | :--- |
+| **Source of Truth** | Running microservice runtime memory & metrics | Version-controlled markdown documents (`./documents`) |
+| **Data Freshness** | Milliseconds (live HTTP probes) | Static / updated on document ingestion |
+| **Content Type** | Actuator status, active errors, downstream probes | Runbooks, incident RCAs, architecture specs, procedures |
+| **Retrieval Method** | Spring AI Function Calling (`get_recent_errors`, etc.) | Vector similarity search (`pgvector` HNSW cosine distance) |
+| **Primary Value** | Answers: *"What is failing right now?"* | Answers: *"How do we fix this according to standard procedure?"* |
+| **Risk Mitigation** | Strict read-only tools, no mutations, timeout isolation | Anti-hallucination prompts, strict citation matching, RCA disclaimer |
+
+---
+
+## 2.2 Core RAG & Vector Concepts
+
+* **RAG (Retrieval-Augmented Generation)**: Rather than relying on static model weights (which hallucinate or have stale knowledge), RAG dynamically queries a database for relevant context chunks and injects them into the LLM prompt at inference time.
+* **Embeddings (`nomic-embed-text`)**: Converts text into dense 768-dimensional numerical vectors capturing semantic meaning. Sentences with similar meanings produce vectors close together in geometric space.
+* **pgvector**: A PostgreSQL extension providing native `vector` data types and fast approximate nearest neighbor (ANN) indexing (e.g. HNSW or IVFFlat) using cosine or Euclidean distance.
+* **Sliding Window Chunking**: Large documents are divided into overlapping chunks (e.g., 800 characters with 120-character overlap) so context is not broken across chunk boundaries.
+* **Anti-Hallucination Guardrails**: Prompts explicitly forbid inventing steps not found in the retrieved documents and require returning exact source document titles and paths.----------------+
 ```
 
 ---
@@ -281,6 +318,14 @@ All AI and diagnostic configurations are managed in `support-platform/src/main/r
 | `prod-support.ai.tool-calling.enabled` | `true` | `AI_TOOL_CALLING_ENABLED` | Enable agentic AI tool calling |
 | `prod-support.ai.tool-calling.deterministic-fallback` | `false` | `AI_TOOL_CALLING_FALLBACK` | Safe deterministic fallback if AI fails |
 | `prod-support.ai.log-prompt` | `true` | `AI_LOG_PROMPT` | Logs prompt and token usage metrics |
+| `prod-support.knowledge.base-directory` | `./documents` | `KNOWLEDGE_BASE_DIR` | Directory containing approved operational markdown documents |
+| `prod-support.knowledge.chunk-size` | `800` | `KNOWLEDGE_CHUNK_SIZE` | Maximum chunk character size for sliding window |
+| `prod-support.knowledge.chunk-overlap` | `120` | `KNOWLEDGE_CHUNK_OVERLAP` | Character overlap between consecutive chunks |
+| `prod-support.knowledge.max-context-chars` | `12000` | `KNOWLEDGE_MAX_CONTEXT_CHARS` | Upper bound for retrieved context injected into prompt |
+| `prod-support.knowledge.default-top-k` | `5` | `KNOWLEDGE_DEFAULT_TOP_K` | Default number of chunks retrieved per query |
+| `prod-support.knowledge.max-top-k` | `10` | `KNOWLEDGE_MAX_TOP_K` | Ceiling on requested top-K chunks |
+| `prod-support.knowledge.embedding-model` | `nomic-embed-text` | `OLLAMA_EMBEDDING_MODEL` | Ollama embedding model name |
+| `prod-support.knowledge.embedding-dimensions` | `768` | `EMBEDDING_DIMENSIONS` | Vector dimensions for pgvector column (768 for nomic-embed-text) |
 
 ---
 
@@ -289,19 +334,22 @@ All AI and diagnostic configurations are managed in `support-platform/src/main/r
 ### Prerequisites
 * **Java**: JDK 21+ (Java 21 bytecode target)
 * **Maven**: Apache Maven 3.8+ or 3.9+
-* **Docker**: Docker Engine & Docker Compose (for PostgreSQL)
+* **Docker**: Docker Engine & Docker Compose (PostgreSQL 16 with `pgvector/pgvector:pg16`)
 * **Ollama**: Installed locally on `http://localhost:11434` ([Download Ollama](https://ollama.com/download))
-* **Ollama Model**: `llama3.1:latest`, `llama3.2`, or `mistral` supporting function calling
+* **Ollama Models**:
+  * Chat Model: `ollama pull llama3:latest` (or `llama3.1`, `qwen2.5`)
+  * Embedding Model: `ollama pull nomic-embed-text`
 
-### Step 1: Start PostgreSQL via Docker Compose
+### Step 1: Start PostgreSQL with pgvector via Docker Compose
 From repository root:
 ```powershell
 docker compose up -d
 ```
 
-### Step 2: Start Ollama Model
+### Step 2: Pull Ollama Models
 ```powershell
-ollama pull llama3.1
+ollama pull llama3
+ollama pull nomic-embed-text
 ```
 
 ### Step 3: Start `payment-service` (Port 8081)
@@ -327,11 +375,82 @@ curl.exe -X POST "http://localhost:8080/api/applications/onboard" `
 
 ---
 
-## 10. Next Milestones (Day 5+)
+## 10. Day 5 PowerShell Verification Commands
 
-* **RAG & Vector Knowledge Base**:
-  * Ingest runbooks, historical postmortems, and architecture documents using pgvector in PostgreSQL.
-  * Combine real-time agentic diagnostic tool execution with semantically retrieved operational runbooks.
-* **Log Tailing & Stream Analysis**:
-  * Real-time streaming analysis of exception patterns and log lines across distributed application instances.
+### 10.1 Trigger Bulk Knowledge Base Ingestion
+Ingests all markdown documents in `./documents`, performs secret scanning, deduplicates via SHA-256 content hashing, splits into 800-char chunks, and indexes into pgvector:
+```powershell
+curl.exe -X POST "http://localhost:8080/api/knowledge/ingest-all" `
+  -H "Content-Type: application/json"
+```
+
+### 10.2 Check Knowledge Base Status
+```powershell
+curl.exe -X GET "http://localhost:8080/api/knowledge/status"
+```
+
+### 10.3 Semantic Knowledge Base Search
+Search indexed runbooks and architecture documents:
+```powershell
+curl.exe -X POST "http://localhost:8080/api/knowledge/search" `
+  -H "Content-Type: application/json" `
+  -d '{
+    "applicationName": "payment-service",
+    "environment": "local",
+    "query": "How to resolve database connection pool exhaustion?",
+    "topK": 3
+  }'
+```
+
+### 10.4 Dedicated Knowledge Chat Q&A
+Ask operational questions answered strictly from approved runbooks with citations:
+```powershell
+curl.exe -X POST "http://localhost:8080/api/support/knowledge-chat" `
+  -H "Content-Type: application/json" `
+  -d '{
+    "applicationName": "payment-service",
+    "environment": "local",
+    "question": "What is the standard runbook procedure when payment-service database connection pool is exhausted?"
+  }'
+```
+
+### 10.5 Historical Incident RCA Search with Safety Disclaimer
+Search past incidents to retrieve historical postmortem context with the automated safety disclaimer:
+```powershell
+curl.exe -X POST "http://localhost:8080/api/knowledge/search" `
+  -H "Content-Type: application/json" `
+  -d '{
+    "applicationName": "payment-service",
+    "environment": "local",
+    "query": "payment gateway timeout incident RCA",
+    "documentTypes": ["INCIDENT", "RCA"],
+    "topK": 2
+  }'
+```
+
+### 10.6 Combined Agentic Investigation (Live Facts + Runbook Guidance)
+Simulate a live failure, then trigger an investigation. The LLM invokes diagnostic tools (e.g. `check_application_health`, `get_recent_errors`) AND `search_knowledge_base` to deliver a response with live facts, root causes, and runbook remediation steps:
+```powershell
+# Simulate DB error in payment-service
+curl.exe -X POST "http://localhost:8081/api/payments/simulate/error?type=database"
+
+# Run Agentic Investigation
+curl.exe -X POST "http://localhost:8080/api/support/investigate" `
+  -H "Content-Type: application/json" `
+  -d '{
+    "applicationName": "payment-service",
+    "environment": "local",
+    "question": "Why is payment-service failing and what does the runbook advise we do?"
+  }'
+```
+
+---
+
+## 11. Next Milestones (Day 6+)
+
+* **Event-Driven Log & Alert Streaming via Kafka**:
+  * Real-time streaming ingestion of error events and alert webhooks.
+  * Automated triage trigger upon high-severity alert thresholds.
+* **Proactive Anomaly Detection**:
+  * Rolling metric anomaly evaluation triggering autonomous proactive investigations before user impact.
 
