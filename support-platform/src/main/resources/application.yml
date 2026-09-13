@@ -35,6 +35,14 @@ prod-support:
     timeout-seconds: ${AI_TIMEOUT_SECONDS:180}
     log-prompt: false
     context-timeout-seconds: 3
+    diagnostic-timeout-seconds: 3
+    max-tool-calls: 6
+    tool-calling:
+      enabled: true
+      deterministic-fallback: true
+      max-tool-calls: 6
+  diagnostics:
+    timeout: 3s
 
 management:
   endpoints:

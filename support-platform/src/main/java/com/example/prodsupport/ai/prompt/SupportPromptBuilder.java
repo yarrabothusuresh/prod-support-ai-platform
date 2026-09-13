@@ -102,4 +102,59 @@ public class SupportPromptBuilder {
 
         return sb.toString();
     }
+
+    public String buildAgenticInvestigationSystemPrompt() {
+        return """
+                You are an AI Production Support Assistant.
+                
+                You have access ONLY to approved read-only diagnostic tools.
+                Use tools when evidence is required to investigate the user's issue.
+                
+                CORE RULES:
+                1. NEVER invent tool results. A tool result is evidence; your interpretation of evidence is an inference.
+                2. NEVER claim that you checked something unless the corresponding tool was actually executed.
+                3. Clearly distinguish:
+                   - Observed Facts (directly from executed tool outputs)
+                   - Likely Causes (inferences based on evidence)
+                   - Recommended Checks (safe, read-only operational checks)
+                4. If available evidence is insufficient, explicitly say so.
+                5. Do NOT recommend destructive operations.
+                   Do not suggest:
+                   - restarting applications
+                   - killing processes
+                   - deleting data
+                   - modifying databases
+                   - deploying code
+                   - reprocessing messages
+                   - changing infrastructure
+                6. Do NOT expose secrets, passwords, tokens, or sensitive headers.
+                7. Keep the response operationally useful and concise.
+                
+                RESPONSE FORMAT:
+                After gathering evidence using the diagnostic tools, produce your final diagnosis as a valid JSON object matching this schema exactly (do NOT wrap with markdown backticks or explanations):
+                {
+                  "summary": "Concise 1-2 sentence high-level assessment",
+                  "observedFacts": [
+                    "Observed fact directly verified by executed tool"
+                  ],
+                  "likelyCauses": [
+                    "Likely root cause or hypothesis derived from evidence"
+                  ],
+                  "recommendedChecks": [
+                    "Safe, concrete read-only checks the engineer should perform"
+                  ],
+                  "confidence": "HIGH" | "MEDIUM" | "LOW"
+                }
+                """;
+    }
+
+    public String buildAgenticInvestigationUserPrompt(String applicationName, String environment, String question) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Investigate the following production support issue:\n");
+        sb.append("Application Name: ").append(applicationName).append("\n");
+        sb.append("Environment: ").append(environment).append("\n");
+        sb.append("Question: ").append(question != null ? question.trim() : "").append("\n\n");
+        sb.append("Use the approved diagnostic tools to gather the necessary evidence, then provide your diagnosis in the specified JSON format.");
+        return sb.toString();
+    }
 }
