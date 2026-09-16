@@ -45,6 +45,7 @@ public class InvestigationService {
     private final ApplicationAccessValidator accessValidator;
     private final DiagnosticToolRegistry toolRegistry;
     private final DiagnosticService diagnosticService;
+    private final com.example.prodsupport.application.service.kafka.KafkaDiagnosticService kafkaDiagnosticService;
     private final ChatModel chatModel;
     private final SupportPromptBuilder promptBuilder;
     private final AiProperties aiProperties;
@@ -54,6 +55,7 @@ public class InvestigationService {
     public InvestigationService(ApplicationAccessValidator accessValidator,
                                 DiagnosticToolRegistry toolRegistry,
                                 DiagnosticService diagnosticService,
+                                com.example.prodsupport.application.service.kafka.KafkaDiagnosticService kafkaDiagnosticService,
                                 ChatModel chatModel,
                                 SupportPromptBuilder promptBuilder,
                                 AiProperties aiProperties,
@@ -62,12 +64,14 @@ public class InvestigationService {
         this.accessValidator = accessValidator;
         this.toolRegistry = toolRegistry;
         this.diagnosticService = diagnosticService;
+        this.kafkaDiagnosticService = kafkaDiagnosticService;
         this.chatModel = chatModel;
         this.promptBuilder = promptBuilder;
         this.aiProperties = aiProperties;
         this.objectMapper = objectMapper;
         this.auditor = auditor;
     }
+
 
     public SupportInvestigationResponse investigate(SupportInvestigationRequest request) {
         String appName = request.applicationName().trim();
@@ -203,6 +207,29 @@ public class InvestigationService {
             }
         } catch (Exception ex) {
             warnings.add("Unable to retrieve dependencies (" + diagnosticService.cleanErrorMessage(ex) + ")");
+        }
+
+        // 5. Kafka Diagnostics (if configured)
+        if (kafkaDiagnosticService.isKafkaConfiguredAndEnabled(app)) {
+            try {
+                var summary = kafkaDiagnosticService.getDiagnosticSummary(app);
+                toolsUsed.add(ToolAllowlist.TOOL_CHECK_KAFKA_CLUSTER);
+                if (summary.clusterReachable()) {
+                    observedFacts.add("Kafka cluster is reachable (brokerCount=" + summary.brokerCount() + ")");
+                } else {
+                    observedFacts.add("Kafka cluster is unreachable");
+                }
+                for (var cg : summary.consumerGroups()) {
+                    toolsUsed.add(ToolAllowlist.TOOL_CHECK_KAFKA_CONSUMER_LAG);
+                    observedFacts.add("Kafka consumer group '" + cg.consumerGroup() + "' (state=" + cg.state() +
+                            ") lag is " + (cg.totalLag() != null ? cg.totalLag() : "unknown") + " [status: " + cg.status() + "]");
+                }
+                if (summary.warnings() != null) {
+                    warnings.addAll(summary.warnings());
+                }
+            } catch (Exception ex) {
+                warnings.add("Kafka diagnostic failed: " + ex.getMessage());
+            }
         }
 
         // Build ApplicationSupportContext for model prompting

@@ -1,9 +1,12 @@
 package com.example.paymentservice;
 
+import com.example.paymentservice.service.PaymentProducer;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.hamcrest.Matchers.hasSize;
@@ -17,6 +20,10 @@ class PaymentServiceApplicationTests {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @MockBean
+    private PaymentProducer paymentProducer;
+
 
     @Test
     void shouldReturnPaymentStatus() throws Exception {
@@ -96,4 +103,49 @@ class PaymentServiceApplicationTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.dependencies[0].status").value("UP"));
     }
+
+    @Test
+    void shouldAcceptPaymentAndPublishEvent() throws Exception {
+        String body = """
+                {
+                    "paymentId": "PAY-1001",
+                    "amount": 2500.00,
+                    "currency": "INR"
+                }
+                """;
+
+        mockMvc.perform(post("/api/payments")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.paymentId").value("PAY-1001"))
+                .andExpect(jsonPath("$.status").value("ACCEPTED"))
+                .andExpect(jsonPath("$.topic").value("payment-events"))
+                .andExpect(jsonPath("$.currency").value("INR"));
+    }
+
+    @Test
+    void shouldManageKafkaConsumerFaultSimulation() throws Exception {
+        // Status initial
+        mockMvc.perform(get("/demo/fault/kafka-consumer/status"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.consumerGroup").value("payment-processing-group"));
+
+        // Pause
+        mockMvc.perform(post("/demo/fault/kafka-consumer/pause"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PAUSED"));
+
+        // Delay
+        mockMvc.perform(post("/demo/fault/kafka-consumer/delay").param("milliseconds", "3000"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("DELAY_CONFIGURED"))
+                .andExpect(jsonPath("$.delayMs").value(3000));
+
+        // Resume
+        mockMvc.perform(post("/demo/fault/kafka-consumer/resume"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RESUMED"));
+    }
 }
+

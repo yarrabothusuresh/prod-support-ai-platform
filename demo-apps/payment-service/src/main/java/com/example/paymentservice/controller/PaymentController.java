@@ -15,15 +15,46 @@ public class PaymentController {
 
     private final ObjectProvider<RecentErrorStore> errorStoreProvider;
     private final ObjectProvider<DependencyHealthService> healthServiceProvider;
+    private final ObjectProvider<com.example.paymentservice.service.PaymentProducer> paymentProducerProvider;
 
     public PaymentController(ObjectProvider<RecentErrorStore> errorStoreProvider,
-                             ObjectProvider<DependencyHealthService> healthServiceProvider) {
+                             ObjectProvider<DependencyHealthService> healthServiceProvider,
+                             ObjectProvider<com.example.paymentservice.service.PaymentProducer> paymentProducerProvider) {
         this.errorStoreProvider = errorStoreProvider;
         this.healthServiceProvider = healthServiceProvider;
+        this.paymentProducerProvider = paymentProducerProvider;
+    }
+
+    @PostMapping
+    public ResponseEntity<Map<String, Object>> createPayment(@RequestBody(required = false) com.example.paymentservice.dto.CreatePaymentRequest request) {
+        String paymentId = (request != null && request.paymentId() != null && !request.paymentId().isBlank()) ?
+                request.paymentId().trim() : "PAY-" + System.currentTimeMillis();
+        java.math.BigDecimal amount = (request != null && request.amount() != null) ?
+                request.amount() : java.math.BigDecimal.valueOf(1000);
+        String currency = (request != null && request.currency() != null && !request.currency().isBlank()) ?
+                request.currency().trim() : "INR";
+
+        com.example.paymentservice.dto.PaymentEvent event = new com.example.paymentservice.dto.PaymentEvent(
+                paymentId, amount, currency, java.time.Instant.now().toString()
+        );
+
+        com.example.paymentservice.service.PaymentProducer producer = paymentProducerProvider.getIfAvailable();
+        if (producer != null) {
+            producer.publishPaymentEvent(event);
+        }
+
+        return ResponseEntity.status(org.springframework.http.HttpStatus.ACCEPTED).body(Map.of(
+                "paymentId", paymentId,
+                "status", "ACCEPTED",
+                "topic", com.example.paymentservice.service.PaymentProducer.TOPIC,
+                "amount", amount,
+                "currency", currency
+        ));
     }
 
     @GetMapping("/status")
     public ResponseEntity<PaymentStatusResponse> getPaymentStatus() {
+
         return ResponseEntity.ok(new PaymentStatusResponse("payment-service", "Payment service is running"));
     }
 

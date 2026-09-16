@@ -26,6 +26,10 @@ public class DiagnosticToolRegistry {
     private final RecentErrorsAiTool recentErrorsAiTool;
     private final DependencyAiTool dependencyAiTool;
     private final KnowledgeBaseAiTool knowledgeBaseAiTool;
+    private final KafkaClusterAiTool kafkaClusterAiTool;
+    private final KafkaConsumerGroupAiTool kafkaConsumerGroupAiTool;
+    private final KafkaConsumerLagAiTool kafkaConsumerLagAiTool;
+    private final KafkaTopicAiTool kafkaTopicAiTool;
     private final ObjectMapper objectMapper;
 
     private final Map<String, FunctionCallback> callbacks = new LinkedHashMap<>();
@@ -35,16 +39,25 @@ public class DiagnosticToolRegistry {
                                   RecentErrorsAiTool recentErrorsAiTool,
                                   DependencyAiTool dependencyAiTool,
                                   KnowledgeBaseAiTool knowledgeBaseAiTool,
+                                  KafkaClusterAiTool kafkaClusterAiTool,
+                                  KafkaConsumerGroupAiTool kafkaConsumerGroupAiTool,
+                                  KafkaConsumerLagAiTool kafkaConsumerLagAiTool,
+                                  KafkaTopicAiTool kafkaTopicAiTool,
                                   ObjectMapper objectMapper) {
         this.applicationInfoAiTool = applicationInfoAiTool;
         this.healthAiTool = healthAiTool;
         this.recentErrorsAiTool = recentErrorsAiTool;
         this.dependencyAiTool = dependencyAiTool;
         this.knowledgeBaseAiTool = knowledgeBaseAiTool;
+        this.kafkaClusterAiTool = kafkaClusterAiTool;
+        this.kafkaConsumerGroupAiTool = kafkaConsumerGroupAiTool;
+        this.kafkaConsumerLagAiTool = kafkaConsumerLagAiTool;
+        this.kafkaTopicAiTool = kafkaTopicAiTool;
         this.objectMapper = objectMapper;
 
         initCallbacks();
     }
+
 
     private void initCallbacks() {
         log.info("Registering safe read-only AI diagnostic tools with Spring AI...");
@@ -94,8 +107,45 @@ public class DiagnosticToolRegistry {
                 .build();
         callbacks.put(KnowledgeBaseAiTool.TOOL_NAME, knowledgeCallback);
 
+        // 6. check_kafka_cluster
+        FunctionCallback kafkaClusterCallback = FunctionCallbackWrapper.builder(kafkaClusterAiTool)
+                .withName(KafkaClusterAiTool.TOOL_NAME)
+                .withDescription(KafkaClusterAiTool.TOOL_DESCRIPTION)
+                .withInputType(KafkaClusterRequest.class)
+                .withObjectMapper(objectMapper)
+                .build();
+        callbacks.put(KafkaClusterAiTool.TOOL_NAME, kafkaClusterCallback);
+
+        // 7. check_kafka_consumer_group
+        FunctionCallback kafkaConsumerGroupCallback = FunctionCallbackWrapper.builder(kafkaConsumerGroupAiTool)
+                .withName(KafkaConsumerGroupAiTool.TOOL_NAME)
+                .withDescription(KafkaConsumerGroupAiTool.TOOL_DESCRIPTION)
+                .withInputType(KafkaConsumerGroupRequest.class)
+                .withObjectMapper(objectMapper)
+                .build();
+        callbacks.put(KafkaConsumerGroupAiTool.TOOL_NAME, kafkaConsumerGroupCallback);
+
+        // 8. check_kafka_consumer_lag
+        FunctionCallback kafkaConsumerLagCallback = FunctionCallbackWrapper.builder(kafkaConsumerLagAiTool)
+                .withName(KafkaConsumerLagAiTool.TOOL_NAME)
+                .withDescription(KafkaConsumerLagAiTool.TOOL_DESCRIPTION)
+                .withInputType(KafkaConsumerLagRequest.class)
+                .withObjectMapper(objectMapper)
+                .build();
+        callbacks.put(KafkaConsumerLagAiTool.TOOL_NAME, kafkaConsumerLagCallback);
+
+        // 9. get_kafka_topic_info
+        FunctionCallback kafkaTopicCallback = FunctionCallbackWrapper.builder(kafkaTopicAiTool)
+                .withName(KafkaTopicAiTool.TOOL_NAME)
+                .withDescription(KafkaTopicAiTool.TOOL_DESCRIPTION)
+                .withInputType(KafkaTopicRequest.class)
+                .withObjectMapper(objectMapper)
+                .build();
+        callbacks.put(KafkaTopicAiTool.TOOL_NAME, kafkaTopicCallback);
+
         log.info("Successfully registered {} diagnostic tools: {}", callbacks.size(), callbacks.keySet());
     }
+
 
     public List<FunctionCallback> getAllCallbacks() {
         return Collections.unmodifiableList(new ArrayList<>(callbacks.values()));

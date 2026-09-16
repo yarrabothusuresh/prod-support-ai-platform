@@ -61,6 +61,16 @@ prod-support:
     minimum-similarity: 0.60
     embedding-model: ${OLLAMA_EMBEDDING_MODEL:nomic-embed-text}
     embedding-dimensions: 768
+  kafka:
+    enabled: true
+    bootstrap-servers:
+      - ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    request-timeout: 5s
+    max-groups-per-request: 20
+    max-partitions-per-request: 100
+    lag:
+      warning-threshold: 100
+      critical-threshold: 1000
   diagnostics:
     timeout: 3s
 

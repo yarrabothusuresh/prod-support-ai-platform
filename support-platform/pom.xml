@@ -61,6 +61,12 @@
             <artifactId>spring-ai-pgvector-store</artifactId>
         </dependency>
 
+        <!-- Apache Kafka Diagnostics Client -->
+        <dependency>
+            <groupId>org.apache.kafka</groupId>
+            <artifactId>kafka-clients</artifactId>
+        </dependency>
+
         <!-- Test dependencies -->
         <dependency>
             <groupId>com.h2database</groupId>

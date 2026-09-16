@@ -446,11 +446,230 @@ curl.exe -X POST "http://localhost:8080/api/support/investigate" `
 
 ---
 
-## 11. Next Milestones (Day 6+)
+# Day 6 — Add Kafka Production Diagnostics + AI Tool Calling
 
-* **Event-Driven Log & Alert Streaming via Kafka**:
-  * Real-time streaming ingestion of error events and alert webhooks.
-  * Automated triage trigger upon high-severity alert thresholds.
-* **Proactive Anomaly Detection**:
-  * Rolling metric anomaly evaluation triggering autonomous proactive investigations before user impact.
+Day 6 adds safe, read-only **Apache Kafka production diagnostics** to the AI Production Support Platform. Support engineers and the Spring AI assistant can now diagnose event streaming backlogs, consumer health, and partition-level offsets, correlating live telemetry with approved RAG runbooks.
+
+---
+
+## 11. Kafka Fundamentals in Simple English
+
+| Concept | Explanation | Real-World Analogy |
+| :--- | :--- | :--- |
+| **Apache Kafka** | Distributed event streaming platform designed for high-throughput, fault-tolerant publish-subscribe pipelines. | A central, durable conveyor belt system for messages. |
+| **Topic** | A named stream/category to which events are published (e.g. `payment-events`). | An inbox tray designated for a specific business process. |
+| **Partition** | An ordered, append-only sub-division of a topic allowing parallel read and write throughput. | Multiple parallel physical lanes in a highway toll plaza. |
+| **Consumer Group** | A coordinated set of consumer instances cooperating to read events from a topic's partitions. | A team of cashiers dividing the checkout lanes among themselves. |
+| **Committed Offset** | The sequential index of the last event successfully processed and confirmed by the consumer. | The last page number a reader wrote down as read. |
+| **Latest Offset** | The sequential index of the latest event written by producers to the end of the partition log. | The total page count of the book so far. |
+| **Consumer Lag** | The numerical difference between the latest offset and the committed offset: `Lag = Latest Offset - Committed Offset`. | The number of unread pages waiting to be read. |
+
+### Concrete Example
+```text
+Kafka contains 100 messages.
+Consumer processed 80 messages.
+
+Latest Offset    = 100
+Committed Offset = 80
+Consumer Lag     = 20 messages
+```
+
+### Why High Lag Does NOT Automatically Mean Failure
+* **Lag is an Observed Fact, Not Confirmed Failure**: Consumer lag measures rate variance between event production and event consumption.
+* **Traffic Spikes**: A sudden burst of 10,000 orders creates temporary lag while consumers process steadily. If consumer state is `STABLE` and processing normally, lag is simply a healthy processing queue.
+* **Persistent vs Transient**: A single point-in-time lag observation cannot prove whether lag is increasing, decreasing, or recovering. Multiple observations over time are required before declaring a production incident.
+
+---
+
+## 12. Day 6 Target Architecture
+
+```text
+                     Support Engineer
+                            │
+                            ▼
+                   Investigation API
+                            │
+                            ▼
+                      Spring AI
+                            │
+                          Ollama
+                            │
+                     Tool Selection
+                            │
+         ┌──────────────────┼─────────────────────┐
+         │                  │                     │
+         ▼                  ▼                     ▼
+     Application          Kafka               Knowledge
+     Diagnostics       Diagnostics               RAG
+         │                  │                     │
+    ┌────┼────┐       ┌─────┼────────┐            │
+    ▼    ▼    ▼       ▼     ▼        ▼            ▼
+ Health Errors Dep   Cluster Lag   Consumer    pgvector
+                      Info         Group/Part
+         │                  │                     │
+         └──────────────────┼─────────────────────┘
+                            ▼
+                         Evidence
+                            │
+                            ▼
+                          Ollama
+                            │
+                            ▼
+                 Grounded Investigation
+```
+
+### Kafka Offset & Lag Collection Pipeline
+```text
+payment-service (Producer)
+       │ (POST /api/payments)
+       ▼
+Kafka Topic: payment-events (Partitions 0..N)
+       │
+       ▼
+payment-service (Consumer: payment-processing-group)
+       │ (Committed Offsets stored in Kafka)
+       ▼
+support-platform
+       │
+       ▼ (AdminClient.listOffsets & listConsumerGroupOffsets)
+Latest Offset - Committed Offset = Consumer Lag
+       │
+       ▼
+KafkaEvidence (totalLag, highestLag, lagStatus, partitionLag)
+       │
+       ▼
+Spring AI Grounded Diagnosis + RAG Runbook Guidance
+```
+
+---
+
+## 13. Safety Guarantees & Security Boundaries
+
+> [!IMPORTANT]
+> **READ-ONLY KAFKA ACCESS**:
+> All Kafka diagnostics use read-only Kafka `AdminClient` APIs (`describeCluster`, `describeConsumerGroups`, `listConsumerGroupOffsets`, `listOffsets`, `describeTopics`).
+> The AI platform and AI tools **CANNOT**:
+> - Publish messages
+> - Consume business messages
+> - Modify or reset consumer offsets
+> - Reset or delete consumer groups
+> - Create or delete topics or partitions
+> - Alter topic configuration
+> - Reprocess events or DLQs
+> - Restart consumers or modify ACLs
+
+> [!CAUTION]
+> **SSRF & Network Boundary Protection**:
+> The LLM and user can NEVER specify arbitrary `bootstrapServers` or unconfigured consumer groups. The platform resolves Kafka cluster credentials from the trusted application registry in PostgreSQL. Unconfigured consumer groups or topics are rejected at the security boundary.
+
+---
+
+## 14. Safe Read-Only Tool Allowlist
+
+The active tool allowlist enforced by `ToolAllowlist` and registered with Spring AI contains 9 approved tools:
+
+| Category | Tool Name | Description |
+| :--- | :--- | :--- |
+| **Application** | `get_application_info` | Metadata and registered configuration of the application |
+| **Application** | `check_application_health` | Live actuator health and status (`UP`, `DOWN`) |
+| **Application** | `get_recent_errors` | Recent error diagnostics from memory ring buffer |
+| **Application** | `check_dependencies` | Downstream dependency health (database, HTTP APIs) |
+| **Knowledge** | `search_knowledge_base` | Semantic vector search over runbooks, architecture, RCAs |
+| **Kafka** | `check_kafka_cluster` | Live cluster connectivity, broker count, cluster ID |
+| **Kafka** | `check_kafka_consumer_group` | Consumer group state (`STABLE`, `EMPTY`), member count, coordinator |
+| **Kafka** | `check_kafka_consumer_lag` | Partition-level lag, total backlog, threshold classification |
+| **Kafka** | `get_kafka_topic_info` | Topic partition count, leader IDs, ISR replica metadata |
+
+---
+
+## 15. Manual Verification Guide (PowerShell)
+
+### 15.1 Start Local Infrastructure (PostgreSQL + Kafka KRaft)
+```powershell
+docker compose up -d
+docker compose ps
+```
+
+### 15.2 Build Platform and Services
+```powershell
+mvn clean verify
+```
+
+### 15.3 Start Demo Services
+In terminal 1 (payment-service):
+```powershell
+cd demo-apps/payment-service
+mvn spring-boot:run
+```
+
+In terminal 2 (support-platform):
+```powershell
+cd support-platform
+mvn spring-boot:run
+```
+
+### 15.4 Register Kafka Configuration for payment-service
+```powershell
+curl.exe -X PUT "http://localhost:8080/api/applications/1/kafka" `
+  -H "Content-Type: application/json" `
+  -d '{
+    "enabled": true,
+    "bootstrapServers": ["localhost:9092"],
+    "consumerGroups": ["payment-processing-group"],
+    "topics": ["payment-events"]
+  }'
+```
+
+### 15.5 Check Kafka Diagnostics REST API
+```powershell
+curl.exe -X GET "http://localhost:8080/api/applications/1/diagnostics/kafka"
+```
+
+### 15.6 Simulate Consumer Lag (Pause Consumer & Publish Events)
+```powershell
+# Pause the payment consumer
+curl.exe -X POST "http://localhost:8081/demo/fault/kafka-consumer/pause"
+
+# Publish 20 payment events into Kafka
+1..20 | ForEach-Object {
+    $body = @{
+        paymentId = "PAY-$_"
+        amount = 1500
+        currency = "INR"
+    } | ConvertTo-Json
+
+    Invoke-RestMethod -Method POST -Uri "http://localhost:8081/api/payments" -ContentType "application/json" -Body $body
+}
+
+# Verify backlog has accumulated
+curl.exe -X GET "http://localhost:8080/api/applications/1/diagnostics/kafka/consumer-groups/payment-processing-group/lag"
+```
+
+### 15.7 Ask AI Support Assistant to Investigate Delay
+```powershell
+curl.exe -X POST "http://localhost:8080/api/support/investigate" `
+  -H "Content-Type: application/json" `
+  -d '{
+    "applicationName": "payment-service",
+    "environment": "local",
+    "question": "Payment processing is delayed. Check Kafka and tell me what the runbook recommends."
+  }'
+```
+
+### 15.8 Resume Consumer to Recover
+```powershell
+curl.exe -X POST "http://localhost:8081/demo/fault/kafka-consumer/resume"
+```
+
+---
+
+## 16. Known Limitations
+1. **Single Lag Measurement vs Trend**: A single lag calculation snapshot cannot mathematically determine whether lag is rising or falling without historic metric snapshots.
+2. **Cluster Security**: Plaintext connectivity is supported locally. Enterprise SASL/SCRAM and TLS certificates can be extended on the base properties without changing the diagnostic abstraction.
+
+---
+
+## 17. Suggested Day 7 Objective
+
+> Add **database production diagnostics** using safe read-only health/pool/query-performance metadata, starting with PostgreSQL locally while designing the abstraction so Oracle can be plugged in later. Add AI tools such as `check_database_health` and `check_connection_pool`, then correlate database evidence with application errors, Kafka diagnostics, and RAG runbooks.
 

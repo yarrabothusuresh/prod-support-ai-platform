@@ -25,7 +25,7 @@ class DiagnosticToolRegistrationTest {
     private DiagnosticToolRegistry toolRegistry;
 
     @Test
-    @DisplayName("Verify all 5 approved diagnostic tools are registered in tool registry")
+    @DisplayName("Verify all 9 approved diagnostic tools are registered in tool registry")
     void shouldRegisterAllFiveApprovedTools() {
         Set<String> registeredNames = toolRegistry.getRegisteredToolNames();
 
@@ -35,12 +35,17 @@ class DiagnosticToolRegistrationTest {
                         ToolAllowlist.TOOL_CHECK_APPLICATION_HEALTH,
                         ToolAllowlist.TOOL_GET_RECENT_ERRORS,
                         ToolAllowlist.TOOL_CHECK_DEPENDENCIES,
-                        ToolAllowlist.TOOL_SEARCH_KNOWLEDGE_BASE
+                        ToolAllowlist.TOOL_SEARCH_KNOWLEDGE_BASE,
+                        ToolAllowlist.TOOL_CHECK_KAFKA_CLUSTER,
+                        ToolAllowlist.TOOL_CHECK_KAFKA_CONSUMER_GROUP,
+                        ToolAllowlist.TOOL_CHECK_KAFKA_CONSUMER_LAG,
+                        ToolAllowlist.TOOL_GET_KAFKA_TOPIC_INFO
                 );
 
         List<FunctionCallback> callbacks = toolRegistry.getAllCallbacks();
-        assertThat(callbacks).hasSize(5);
+        assertThat(callbacks).hasSize(9);
     }
+
 
     @Test
     @DisplayName("Verify each tool has a clear non-empty description and name")
@@ -79,6 +84,10 @@ class DiagnosticToolRegistrationTest {
         assertThat(ToolAllowlist.isAllowed("get_recent_errors")).isTrue();
         assertThat(ToolAllowlist.isAllowed("check_dependencies")).isTrue();
         assertThat(ToolAllowlist.isAllowed("search_knowledge_base")).isTrue();
+        assertThat(ToolAllowlist.isAllowed("check_kafka_cluster")).isTrue();
+        assertThat(ToolAllowlist.isAllowed("check_kafka_consumer_group")).isTrue();
+        assertThat(ToolAllowlist.isAllowed("check_kafka_consumer_lag")).isTrue();
+        assertThat(ToolAllowlist.isAllowed("get_kafka_topic_info")).isTrue();
 
         // Non-approved tools rejected
         assertThat(ToolAllowlist.isAllowed("restart_application")).isFalse();
