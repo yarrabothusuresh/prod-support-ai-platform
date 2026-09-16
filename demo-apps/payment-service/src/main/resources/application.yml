@@ -16,6 +16,20 @@ spring:
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
     listener:
       auto-startup: ${KAFKA_CONSUMER_AUTO_STARTUP:true}
+  datasource:
+    url: ${PAYMENT_DB_JDBC_URL:jdbc:h2:mem:payment_db;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE}
+    username: ${PAYMENT_DB_USERNAME:sa}
+    password: ${PAYMENT_DB_PASSWORD:}
+    driver-class-name: ${PAYMENT_DB_DRIVER:org.h2.Driver}
+    hikari:
+      pool-name: PaymentHikariPool
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 3000
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
 
 
 prod-support:

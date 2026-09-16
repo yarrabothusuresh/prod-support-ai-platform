@@ -16,6 +16,11 @@ public final class ToolAllowlist {
     public static final String TOOL_CHECK_KAFKA_CONSUMER_LAG = "check_kafka_consumer_lag";
     public static final String TOOL_GET_KAFKA_TOPIC_INFO = "get_kafka_topic_info";
 
+    // Database Diagnostic Tools (Safe Read-Only)
+    public static final String TOOL_CHECK_DATABASE_HEALTH = "check_database_health";
+    public static final String TOOL_CHECK_DATABASE_CONNECTION_POOL = "check_database_connection_pool";
+    public static final String TOOL_CHECK_DATABASE_ACTIVITY = "check_database_activity";
+
     public static final Set<String> APPROVED_TOOLS = Set.of(
             TOOL_GET_APPLICATION_INFO,
             TOOL_CHECK_APPLICATION_HEALTH,
@@ -25,7 +30,10 @@ public final class ToolAllowlist {
             TOOL_CHECK_KAFKA_CLUSTER,
             TOOL_CHECK_KAFKA_CONSUMER_GROUP,
             TOOL_CHECK_KAFKA_CONSUMER_LAG,
-            TOOL_GET_KAFKA_TOPIC_INFO
+            TOOL_GET_KAFKA_TOPIC_INFO,
+            TOOL_CHECK_DATABASE_HEALTH,
+            TOOL_CHECK_DATABASE_CONNECTION_POOL,
+            TOOL_CHECK_DATABASE_ACTIVITY
     );
 
     private ToolAllowlist() {}

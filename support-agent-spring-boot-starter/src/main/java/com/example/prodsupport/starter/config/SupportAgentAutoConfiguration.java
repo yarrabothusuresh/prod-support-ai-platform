@@ -44,9 +44,18 @@ public class SupportAgentAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    public com.example.prodsupport.starter.service.DatabasePoolDiagnosticService databasePoolDiagnosticService(
+            SupportProperties properties,
+            ObjectProvider<javax.sql.DataSource> dataSourceProvider) {
+        return new com.example.prodsupport.starter.service.DatabasePoolDiagnosticService(properties, dataSourceProvider);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     public SupportDiagnosticsController supportDiagnosticsController(SupportProperties properties,
                                                                      RecentErrorStore recentErrorStore,
-                                                                     DependencyHealthService dependencyHealthService) {
-        return new SupportDiagnosticsController(properties, recentErrorStore, dependencyHealthService);
+                                                                     DependencyHealthService dependencyHealthService,
+                                                                     com.example.prodsupport.starter.service.DatabasePoolDiagnosticService databasePoolDiagnosticService) {
+        return new SupportDiagnosticsController(properties, recentErrorStore, dependencyHealthService, databasePoolDiagnosticService);
     }
 }

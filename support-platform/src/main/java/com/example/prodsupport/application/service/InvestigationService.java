@@ -46,6 +46,7 @@ public class InvestigationService {
     private final DiagnosticToolRegistry toolRegistry;
     private final DiagnosticService diagnosticService;
     private final com.example.prodsupport.application.service.kafka.KafkaDiagnosticService kafkaDiagnosticService;
+    private final com.example.prodsupport.database.service.ApplicationDatabaseDiagnosticService databaseDiagnosticService;
     private final ChatModel chatModel;
     private final SupportPromptBuilder promptBuilder;
     private final AiProperties aiProperties;
@@ -56,6 +57,7 @@ public class InvestigationService {
                                 DiagnosticToolRegistry toolRegistry,
                                 DiagnosticService diagnosticService,
                                 com.example.prodsupport.application.service.kafka.KafkaDiagnosticService kafkaDiagnosticService,
+                                com.example.prodsupport.database.service.ApplicationDatabaseDiagnosticService databaseDiagnosticService,
                                 ChatModel chatModel,
                                 SupportPromptBuilder promptBuilder,
                                 AiProperties aiProperties,
@@ -65,6 +67,7 @@ public class InvestigationService {
         this.toolRegistry = toolRegistry;
         this.diagnosticService = diagnosticService;
         this.kafkaDiagnosticService = kafkaDiagnosticService;
+        this.databaseDiagnosticService = databaseDiagnosticService;
         this.chatModel = chatModel;
         this.promptBuilder = promptBuilder;
         this.aiProperties = aiProperties;
@@ -230,6 +233,36 @@ public class InvestigationService {
             } catch (Exception ex) {
                 warnings.add("Kafka diagnostic failed: " + ex.getMessage());
             }
+        }
+
+        // 6. Database Diagnostics (if configured)
+        try {
+            var dbDiag = databaseDiagnosticService.runDiagnostics(app);
+            if (dbDiag.enabled()) {
+                if (dbDiag.health() != null) {
+                    toolsUsed.add(ToolAllowlist.TOOL_CHECK_DATABASE_HEALTH);
+                    observedFacts.add("Database '" + dbDiag.databaseName() + "' (" + dbDiag.databaseType() + ") status is " +
+                            dbDiag.health().status() + " (responseTime=" + dbDiag.health().responseTimeMs() + "ms)");
+                }
+                if (dbDiag.connectionPool() != null && !"UNKNOWN".equalsIgnoreCase(dbDiag.connectionPool().status())) {
+                    toolsUsed.add(ToolAllowlist.TOOL_CHECK_DATABASE_CONNECTION_POOL);
+                    var pool = dbDiag.connectionPool();
+                    observedFacts.add("Connection pool '" + pool.poolName() + "' is " + pool.status() +
+                            ": active=" + pool.activeConnections() + "/" + pool.maxPoolSize() + " (" + pool.utilizationPercent() +
+                            "%), waitingThreads=" + pool.threadsAwaitingConnection());
+                }
+                if (dbDiag.activity() != null && dbDiag.activity().activeSessions() > 0) {
+                    toolsUsed.add(ToolAllowlist.TOOL_CHECK_DATABASE_ACTIVITY);
+                    var act = dbDiag.activity();
+                    observedFacts.add("Database activity: " + act.activeSessions() + " active sessions, " +
+                            act.waitingSessions() + " waiting sessions, " + act.longRunningQueryCount() + " long-running queries");
+                }
+                if (dbDiag.warnings() != null) {
+                    warnings.addAll(dbDiag.warnings());
+                }
+            }
+        } catch (Exception ex) {
+            warnings.add("Database diagnostic failed: " + ex.getMessage());
         }
 
         // Build ApplicationSupportContext for model prompting

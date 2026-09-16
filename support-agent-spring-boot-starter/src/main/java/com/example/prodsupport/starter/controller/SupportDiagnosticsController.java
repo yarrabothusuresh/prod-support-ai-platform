@@ -5,6 +5,7 @@ import com.example.prodsupport.starter.model.SupportDependency;
 import com.example.prodsupport.starter.model.SupportError;
 import com.example.prodsupport.starter.model.SupportErrorsResponse;
 import com.example.prodsupport.starter.properties.SupportProperties;
+import com.example.prodsupport.starter.service.DatabasePoolDiagnosticService;
 import com.example.prodsupport.starter.service.DependencyHealthService;
 import com.example.prodsupport.starter.store.RecentErrorStore;
 import org.springframework.http.ResponseEntity;
@@ -23,13 +24,25 @@ public class SupportDiagnosticsController {
     private final SupportProperties properties;
     private final RecentErrorStore recentErrorStore;
     private final DependencyHealthService dependencyHealthService;
+    private final DatabasePoolDiagnosticService databasePoolDiagnosticService;
 
     public SupportDiagnosticsController(SupportProperties properties,
                                         RecentErrorStore recentErrorStore,
-                                        DependencyHealthService dependencyHealthService) {
+                                        DependencyHealthService dependencyHealthService,
+                                        DatabasePoolDiagnosticService databasePoolDiagnosticService) {
         this.properties = properties;
         this.recentErrorStore = recentErrorStore;
         this.dependencyHealthService = dependencyHealthService;
+        this.databasePoolDiagnosticService = databasePoolDiagnosticService;
+    }
+
+    @GetMapping("/database/pool")
+    public ResponseEntity<com.example.prodsupport.starter.model.DatabasePoolDiagnostics> getDatabasePool() {
+        if (databasePoolDiagnosticService == null) {
+            return ResponseEntity.ok(com.example.prodsupport.starter.model.DatabasePoolDiagnostics.unavailable(
+                    "Database pool diagnostics service not configured"));
+        }
+        return ResponseEntity.ok(databasePoolDiagnosticService.checkPool());
     }
 
     @GetMapping("/errors")

@@ -30,6 +30,9 @@ public class DiagnosticToolRegistry {
     private final KafkaConsumerGroupAiTool kafkaConsumerGroupAiTool;
     private final KafkaConsumerLagAiTool kafkaConsumerLagAiTool;
     private final KafkaTopicAiTool kafkaTopicAiTool;
+    private final DatabaseHealthAiTool databaseHealthAiTool;
+    private final DatabaseConnectionPoolAiTool databaseConnectionPoolAiTool;
+    private final DatabaseActivityAiTool databaseActivityAiTool;
     private final ObjectMapper objectMapper;
 
     private final Map<String, FunctionCallback> callbacks = new LinkedHashMap<>();
@@ -43,6 +46,9 @@ public class DiagnosticToolRegistry {
                                   KafkaConsumerGroupAiTool kafkaConsumerGroupAiTool,
                                   KafkaConsumerLagAiTool kafkaConsumerLagAiTool,
                                   KafkaTopicAiTool kafkaTopicAiTool,
+                                  DatabaseHealthAiTool databaseHealthAiTool,
+                                  DatabaseConnectionPoolAiTool databaseConnectionPoolAiTool,
+                                  DatabaseActivityAiTool databaseActivityAiTool,
                                   ObjectMapper objectMapper) {
         this.applicationInfoAiTool = applicationInfoAiTool;
         this.healthAiTool = healthAiTool;
@@ -53,6 +59,9 @@ public class DiagnosticToolRegistry {
         this.kafkaConsumerGroupAiTool = kafkaConsumerGroupAiTool;
         this.kafkaConsumerLagAiTool = kafkaConsumerLagAiTool;
         this.kafkaTopicAiTool = kafkaTopicAiTool;
+        this.databaseHealthAiTool = databaseHealthAiTool;
+        this.databaseConnectionPoolAiTool = databaseConnectionPoolAiTool;
+        this.databaseActivityAiTool = databaseActivityAiTool;
         this.objectMapper = objectMapper;
 
         initCallbacks();
@@ -142,6 +151,33 @@ public class DiagnosticToolRegistry {
                 .withObjectMapper(objectMapper)
                 .build();
         callbacks.put(KafkaTopicAiTool.TOOL_NAME, kafkaTopicCallback);
+
+        // 10. check_database_health
+        FunctionCallback dbHealthCallback = FunctionCallbackWrapper.builder(databaseHealthAiTool)
+                .withName(DatabaseHealthAiTool.TOOL_NAME)
+                .withDescription(DatabaseHealthAiTool.TOOL_DESCRIPTION)
+                .withInputType(DatabaseDiagnosticToolRequest.class)
+                .withObjectMapper(objectMapper)
+                .build();
+        callbacks.put(DatabaseHealthAiTool.TOOL_NAME, dbHealthCallback);
+
+        // 11. check_database_connection_pool
+        FunctionCallback dbPoolCallback = FunctionCallbackWrapper.builder(databaseConnectionPoolAiTool)
+                .withName(DatabaseConnectionPoolAiTool.TOOL_NAME)
+                .withDescription(DatabaseConnectionPoolAiTool.TOOL_DESCRIPTION)
+                .withInputType(DatabaseDiagnosticToolRequest.class)
+                .withObjectMapper(objectMapper)
+                .build();
+        callbacks.put(DatabaseConnectionPoolAiTool.TOOL_NAME, dbPoolCallback);
+
+        // 12. check_database_activity
+        FunctionCallback dbActivityCallback = FunctionCallbackWrapper.builder(databaseActivityAiTool)
+                .withName(DatabaseActivityAiTool.TOOL_NAME)
+                .withDescription(DatabaseActivityAiTool.TOOL_DESCRIPTION)
+                .withInputType(DatabaseDiagnosticToolRequest.class)
+                .withObjectMapper(objectMapper)
+                .build();
+        callbacks.put(DatabaseActivityAiTool.TOOL_NAME, dbActivityCallback);
 
         log.info("Successfully registered {} diagnostic tools: {}", callbacks.size(), callbacks.keySet());
     }

@@ -1,6 +1,6 @@
 # AI Production Support Platform (`prod-support-ai-platform`)
 
-> **Day 5 Milestone: Knowledge Base + RAG with PostgreSQL pgvector & Ollama Embeddings**
+> **Day 7 Milestone: Safe Database Production Diagnostics + AI Tool Calling (HikariCP, PostgreSQL & Cross-System Correlation)**
 
 ---
 
@@ -663,13 +663,87 @@ curl.exe -X POST "http://localhost:8081/demo/fault/kafka-consumer/resume"
 
 ---
 
-## 16. Known Limitations
-1. **Single Lag Measurement vs Trend**: A single lag calculation snapshot cannot mathematically determine whether lag is rising or falling without historic metric snapshots.
-2. **Cluster Security**: Plaintext connectivity is supported locally. Enterprise SASL/SCRAM and TLS certificates can be extended on the base properties without changing the diagnostic abstraction.
+## 16. Day 7 — Database Production Diagnostics
+
+### Core Concepts Explained
+- **What is a Connection Pool?**: A cache of reusable physical database connections maintained in memory by the application (using HikariCP in Spring Boot) to avoid the high overhead of establishing a new TCP/TLS handshake and authentication session for every query.
+- **Active vs Idle Connections**:
+  - **Active Connections**: Connections currently reserved by a thread and actively executing queries or participating in an open transaction.
+  - **Idle Connections**: Ready, pre-warmed connections sitting in the pool awaiting work.
+- **Pool Utilization**: The percentage of the configured maximum pool size currently occupied by active connections: `(activeConnections / maxPoolSize) * 100`.
+- **Threads Awaiting Connection**: Application worker threads blocked and waiting to acquire a connection because all pool connections are in use. If `threadsAwaitingConnection > 0`, the application is experiencing connection pool starvation.
+- **Why can a DB be UP while the application experiences DB errors?**: A database can be healthy, reachable, and responding in <10ms to a ping (`SELECT 1`), yet the application cannot acquire connections if the connection pool is saturated, queries are holding locks, or transactions are running long.
+- **Long-Running Database Activity**: Database transactions or queries that remain open longer than a safe threshold (e.g. >5s), preventing connection return to the pool.
+- **Fact vs Inference (Why high pool usage does NOT prove a connection leak)**:
+  - *Observed Fact*: `active=10, max=10, waitingThreads=4`.
+  - *Valid Inference*: The connection pool is under heavy pressure.
+  - *Invalid Inference*: "There is a connection leak". A leak requires persistent saturation after traffic stops. Saturated pools are frequently caused by sudden traffic spikes, slow downstream APIs holding transactions open, or unindexed queries.
+
+### Read-Only Security Model
+- **Strictly READ-ONLY**: No generic SQL tools (`execute_sql`, `run_query`, `query_database`).
+- **No LLM-supplied SQL**: Queries are hardcoded inside Java providers (`SELECT 1` for health, aggregate queries on `pg_stat_activity` without query text/parameters).
+- **No Credential / Network Leakage**: The LLM accepts only `applicationName` and `environment`. It never passes or receives JDBC URLs, usernames, or passwords.
+- **Safe Credential Resolution**: Passwords are resolved via `DatabaseCredentialProvider` (environment variables such as `DB_PAYMENT_PASSWORD`) and are never stored in plaintext or returned in API responses.
 
 ---
 
-## 17. Suggested Day 7 Objective
+## 17. Day 7 Manual Windows Verification Steps
 
-> Add **database production diagnostics** using safe read-only health/pool/query-performance metadata, starting with PostgreSQL locally while designing the abstraction so Oracle can be plugged in later. Add AI tools such as `check_database_health` and `check_connection_pool`, then correlate database evidence with application errors, Kafka diagnostics, and RAG runbooks.
+### 17.1 Start Infrastructure
+```powershell
+docker compose up -d
+```
+
+### 17.2 Configure Database for payment-service
+```powershell
+curl.exe -X PUT "http://localhost:8080/api/applications/1/database" `
+  -H "Content-Type: application/json" `
+  -d '{
+    "databaseType": "POSTGRESQL",
+    "displayName": "payment-db",
+    "jdbcUrl": "jdbc:postgresql://localhost:5432/payment_db",
+    "username": "payment_app",
+    "credentialReference": "PAYMENT_DB",
+    "enabled": true
+  }'
+```
+
+### 17.3 Check Database Diagnostics REST API
+```powershell
+curl.exe -X GET "http://localhost:8080/api/applications/1/diagnostics/database"
+```
+
+### 17.4 Simulate Local Pool Pressure
+```powershell
+curl.exe -X POST "http://localhost:8081/demo/fault/database/pool-pressure?connections=8&seconds=20"
+```
+
+### 17.5 Investigate Database Connection Delay with Runbook
+```powershell
+curl.exe -X POST "http://localhost:8080/api/support/investigate" `
+  -H "Content-Type: application/json" `
+  -d '{
+    "applicationName": "payment-service",
+    "environment": "local",
+    "question": "Why is payment-service experiencing database connection delays? Check the pool and runbook."
+  }'
+```
+
+### 17.6 Clear Simulated Faults
+```powershell
+curl.exe -X POST "http://localhost:8081/demo/fault/database/clear"
+```
+
+---
+
+## 18. Known Limitations
+1. **Single Lag & Pool Measurement vs Trend**: A single snapshot indicates current utilization, not whether pool pressure is recovering or deteriorating.
+2. **Oracle Diagnostics**: Interface `DatabaseDiagnosticProvider` is architecture-ready with `OracleDiagnosticProvider`, but PostgreSQL is the active implementation in Day 7.
+
+---
+
+## 19. Suggested Day 8 Objective
+
+> Add centralized application log diagnostics using local Elasticsearch + Kibana, with safe structured log search tools such as `search_application_errors` and `get_error_pattern_summary`. Correlate logs with application health, Kafka, database diagnostics and RAG while preventing unrestricted log access and sensitive-data leakage.
+
 

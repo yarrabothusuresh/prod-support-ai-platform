@@ -96,6 +96,7 @@ public class SupportProperties {
         private boolean errors = true;
         private boolean dependencies = true;
         private int maxErrorRetention = 100;
+        private DatabaseDiagnostics database = new DatabaseDiagnostics();
 
         public boolean isHealth() {
             return health;
@@ -135,6 +136,65 @@ public class SupportProperties {
 
         public void setMaxErrorRetention(int maxErrorRetention) {
             this.maxErrorRetention = maxErrorRetention;
+        }
+
+        public DatabaseDiagnostics getDatabase() {
+            return database;
+        }
+
+        public void setDatabase(DatabaseDiagnostics database) {
+            this.database = database != null ? database : new DatabaseDiagnostics();
+        }
+    }
+
+    public static class DatabaseDiagnostics {
+        private boolean enabled = true;
+        private PoolDiagnostics pool = new PoolDiagnostics();
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public PoolDiagnostics getPool() {
+            return pool;
+        }
+
+        public void setPool(PoolDiagnostics pool) {
+            this.pool = pool != null ? pool : new PoolDiagnostics();
+        }
+    }
+
+    public static class PoolDiagnostics {
+        private boolean enabled = true;
+        private int warningUtilizationPercent = 80;
+        private int criticalUtilizationPercent = 95;
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public int getWarningUtilizationPercent() {
+            return warningUtilizationPercent;
+        }
+
+        public void setWarningUtilizationPercent(int warningUtilizationPercent) {
+            this.warningUtilizationPercent = warningUtilizationPercent;
+        }
+
+        public int getCriticalUtilizationPercent() {
+            return criticalUtilizationPercent;
+        }
+
+        public void setCriticalUtilizationPercent(int criticalUtilizationPercent) {
+            this.criticalUtilizationPercent = criticalUtilizationPercent;
         }
     }
 

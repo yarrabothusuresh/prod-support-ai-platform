@@ -16,13 +16,16 @@ public class PaymentController {
     private final ObjectProvider<RecentErrorStore> errorStoreProvider;
     private final ObjectProvider<DependencyHealthService> healthServiceProvider;
     private final ObjectProvider<com.example.paymentservice.service.PaymentProducer> paymentProducerProvider;
+    private final ObjectProvider<com.example.paymentservice.repository.PaymentRecordRepository> paymentRepositoryProvider;
 
     public PaymentController(ObjectProvider<RecentErrorStore> errorStoreProvider,
                              ObjectProvider<DependencyHealthService> healthServiceProvider,
-                             ObjectProvider<com.example.paymentservice.service.PaymentProducer> paymentProducerProvider) {
+                             ObjectProvider<com.example.paymentservice.service.PaymentProducer> paymentProducerProvider,
+                             ObjectProvider<com.example.paymentservice.repository.PaymentRecordRepository> paymentRepositoryProvider) {
         this.errorStoreProvider = errorStoreProvider;
         this.healthServiceProvider = healthServiceProvider;
         this.paymentProducerProvider = paymentProducerProvider;
+        this.paymentRepositoryProvider = paymentRepositoryProvider;
     }
 
     @PostMapping
@@ -33,6 +36,16 @@ public class PaymentController {
                 request.amount() : java.math.BigDecimal.valueOf(1000);
         String currency = (request != null && request.currency() != null && !request.currency().isBlank()) ?
                 request.currency().trim() : "INR";
+
+        // Save to Database
+        com.example.paymentservice.repository.PaymentRecordRepository repo = paymentRepositoryProvider.getIfAvailable();
+        if (repo != null) {
+            try {
+                repo.save(new com.example.paymentservice.model.PaymentRecord(paymentId, amount, currency, "ACCEPTED"));
+            } catch (Exception ex) {
+                // Keep resilient
+            }
+        }
 
         com.example.paymentservice.dto.PaymentEvent event = new com.example.paymentservice.dto.PaymentEvent(
                 paymentId, amount, currency, java.time.Instant.now().toString()

@@ -25,8 +25,8 @@ class DiagnosticToolRegistrationTest {
     private DiagnosticToolRegistry toolRegistry;
 
     @Test
-    @DisplayName("Verify all 9 approved diagnostic tools are registered in tool registry")
-    void shouldRegisterAllFiveApprovedTools() {
+    @DisplayName("Verify all 12 approved diagnostic tools are registered in tool registry")
+    void shouldRegisterAllTwelveApprovedTools() {
         Set<String> registeredNames = toolRegistry.getRegisteredToolNames();
 
         assertThat(registeredNames)
@@ -39,11 +39,14 @@ class DiagnosticToolRegistrationTest {
                         ToolAllowlist.TOOL_CHECK_KAFKA_CLUSTER,
                         ToolAllowlist.TOOL_CHECK_KAFKA_CONSUMER_GROUP,
                         ToolAllowlist.TOOL_CHECK_KAFKA_CONSUMER_LAG,
-                        ToolAllowlist.TOOL_GET_KAFKA_TOPIC_INFO
+                        ToolAllowlist.TOOL_GET_KAFKA_TOPIC_INFO,
+                        ToolAllowlist.TOOL_CHECK_DATABASE_HEALTH,
+                        ToolAllowlist.TOOL_CHECK_DATABASE_CONNECTION_POOL,
+                        ToolAllowlist.TOOL_CHECK_DATABASE_ACTIVITY
                 );
 
         List<FunctionCallback> callbacks = toolRegistry.getAllCallbacks();
-        assertThat(callbacks).hasSize(9);
+        assertThat(callbacks).hasSize(12);
     }
 
 
@@ -74,6 +77,18 @@ class DiagnosticToolRegistrationTest {
         assertThat(knowledge).isNotNull();
         assertThat(knowledge.getName()).isEqualTo(KnowledgeBaseAiTool.TOOL_NAME);
         assertThat(knowledge.getDescription()).contains("knowledge base");
+
+        FunctionCallback dbHealth = toolRegistry.getCallback(ToolAllowlist.TOOL_CHECK_DATABASE_HEALTH);
+        assertThat(dbHealth).isNotNull();
+        assertThat(dbHealth.getDescription()).contains("database");
+
+        FunctionCallback dbPool = toolRegistry.getCallback(ToolAllowlist.TOOL_CHECK_DATABASE_CONNECTION_POOL);
+        assertThat(dbPool).isNotNull();
+        assertThat(dbPool.getDescription()).contains("connection pool");
+
+        FunctionCallback dbActivity = toolRegistry.getCallback(ToolAllowlist.TOOL_CHECK_DATABASE_ACTIVITY);
+        assertThat(dbActivity).isNotNull();
+        assertThat(dbActivity.getDescription()).contains("database activity");
     }
 
     @Test
@@ -88,10 +103,15 @@ class DiagnosticToolRegistrationTest {
         assertThat(ToolAllowlist.isAllowed("check_kafka_consumer_group")).isTrue();
         assertThat(ToolAllowlist.isAllowed("check_kafka_consumer_lag")).isTrue();
         assertThat(ToolAllowlist.isAllowed("get_kafka_topic_info")).isTrue();
+        assertThat(ToolAllowlist.isAllowed("check_database_health")).isTrue();
+        assertThat(ToolAllowlist.isAllowed("check_database_connection_pool")).isTrue();
+        assertThat(ToolAllowlist.isAllowed("check_database_activity")).isTrue();
 
         // Non-approved tools rejected
         assertThat(ToolAllowlist.isAllowed("restart_application")).isFalse();
         assertThat(ToolAllowlist.isAllowed("execute_bash_command")).isFalse();
+        assertThat(ToolAllowlist.isAllowed("execute_sql")).isFalse();
+        assertThat(ToolAllowlist.isAllowed("run_sql")).isFalse();
         assertThat(ToolAllowlist.isAllowed("query_database")).isFalse();
         assertThat(ToolAllowlist.isAllowed("unknown_tool")).isFalse();
     }
