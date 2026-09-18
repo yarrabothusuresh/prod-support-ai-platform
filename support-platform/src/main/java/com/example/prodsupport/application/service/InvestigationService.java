@@ -47,6 +47,9 @@ public class InvestigationService {
     private final DiagnosticService diagnosticService;
     private final com.example.prodsupport.application.service.kafka.KafkaDiagnosticService kafkaDiagnosticService;
     private final com.example.prodsupport.database.service.ApplicationDatabaseDiagnosticService databaseDiagnosticService;
+    private final com.example.prodsupport.logging.service.LogSearchService logSearchService;
+    private final com.example.prodsupport.logging.service.ErrorPatternService errorPatternService;
+    private final com.example.prodsupport.logging.client.LogSearchClient logSearchClient;
     private final ChatModel chatModel;
     private final SupportPromptBuilder promptBuilder;
     private final AiProperties aiProperties;
@@ -58,6 +61,9 @@ public class InvestigationService {
                                 DiagnosticService diagnosticService,
                                 com.example.prodsupport.application.service.kafka.KafkaDiagnosticService kafkaDiagnosticService,
                                 com.example.prodsupport.database.service.ApplicationDatabaseDiagnosticService databaseDiagnosticService,
+                                com.example.prodsupport.logging.service.LogSearchService logSearchService,
+                                com.example.prodsupport.logging.service.ErrorPatternService errorPatternService,
+                                com.example.prodsupport.logging.client.LogSearchClient logSearchClient,
                                 ChatModel chatModel,
                                 SupportPromptBuilder promptBuilder,
                                 AiProperties aiProperties,
@@ -68,12 +74,16 @@ public class InvestigationService {
         this.diagnosticService = diagnosticService;
         this.kafkaDiagnosticService = kafkaDiagnosticService;
         this.databaseDiagnosticService = databaseDiagnosticService;
+        this.logSearchService = logSearchService;
+        this.errorPatternService = errorPatternService;
+        this.logSearchClient = logSearchClient;
         this.chatModel = chatModel;
         this.promptBuilder = promptBuilder;
         this.aiProperties = aiProperties;
         this.objectMapper = objectMapper;
         this.auditor = auditor;
     }
+
 
 
     public SupportInvestigationResponse investigate(SupportInvestigationRequest request) {
@@ -265,7 +275,40 @@ public class InvestigationService {
             warnings.add("Database diagnostic failed: " + ex.getMessage());
         }
 
+        // 7. Centralized Log Diagnostics (Elasticsearch)
+        try {
+
+            if (logSearchClient != null && logSearchClient.isAvailable()) {
+                Instant end = Instant.now();
+                Instant start = end.minus(java.time.Duration.ofMinutes(15));
+                var logResult = logSearchService.searchLogs(appName, environment, start, end, List.of("ERROR", "WARN"), null, null, 10);
+                toolsUsed.add(ToolAllowlist.TOOL_SEARCH_APPLICATION_ERRORS);
+                if (logResult.totalHits() > 0) {
+                    observedFacts.add("Centralized logs: " + logResult.totalHits() + " error/warn events found in Elasticsearch over last 15m");
+                }
+                var patterns = errorPatternService.summarizeErrors(appName, environment, 15, 10);
+                toolsUsed.add(ToolAllowlist.TOOL_GET_ERROR_PATTERN_SUMMARY);
+                if (!patterns.patterns().isEmpty()) {
+                    StringBuilder psb = new StringBuilder("Recurring error patterns (last 15m): ");
+                    for (int i = 0; i < patterns.patterns().size(); i++) {
+                        var p = patterns.patterns().get(i);
+                        if (i > 0) psb.append(", ");
+                        psb.append(p.errorType()).append("=").append(p.count());
+                    }
+                    observedFacts.add(psb.toString());
+                }
+                if (logResult.warnings() != null) {
+                    warnings.addAll(logResult.warnings());
+                }
+            } else {
+                warnings.add("Centralized log search is currently unavailable. Evaluated application using in-memory diagnostics.");
+            }
+        } catch (Exception ex) {
+            warnings.add("Centralized log diagnostic unavailable: " + ex.getMessage());
+        }
+
         // Build ApplicationSupportContext for model prompting
+
         List<SupportErrorDto> errorDtos = new ArrayList<>();
         if (errorsData != null && errorsData.errors() != null) {
             for (SanitizedErrorDto e : errorsData.errors()) {

@@ -1,0 +1,43 @@
+{
+  "index_patterns": ["prod-support-logs-*"],
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 0
+    },
+    "mappings": {
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        },
+        "applicationName": {
+          "type": "keyword"
+        },
+        "environment": {
+          "type": "keyword"
+        },
+        "level": {
+          "type": "keyword"
+        },
+        "errorType": {
+          "type": "keyword"
+        },
+        "component": {
+          "type": "keyword"
+        },
+        "correlationId": {
+          "type": "keyword"
+        },
+        "traceId": {
+          "type": "keyword"
+        },
+        "logger": {
+          "type": "keyword"
+        },
+        "message": {
+          "type": "text"
+        }
+      }
+    }
+  }
+}

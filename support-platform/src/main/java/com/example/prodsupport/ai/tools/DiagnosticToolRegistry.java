@@ -33,6 +33,9 @@ public class DiagnosticToolRegistry {
     private final DatabaseHealthAiTool databaseHealthAiTool;
     private final DatabaseConnectionPoolAiTool databaseConnectionPoolAiTool;
     private final DatabaseActivityAiTool databaseActivityAiTool;
+    private final SearchApplicationErrorsAiTool searchApplicationErrorsAiTool;
+    private final GetErrorPatternSummaryAiTool getErrorPatternSummaryAiTool;
+    private final GetApplicationLogTimelineAiTool getApplicationLogTimelineAiTool;
     private final ObjectMapper objectMapper;
 
     private final Map<String, FunctionCallback> callbacks = new LinkedHashMap<>();
@@ -49,6 +52,9 @@ public class DiagnosticToolRegistry {
                                   DatabaseHealthAiTool databaseHealthAiTool,
                                   DatabaseConnectionPoolAiTool databaseConnectionPoolAiTool,
                                   DatabaseActivityAiTool databaseActivityAiTool,
+                                  SearchApplicationErrorsAiTool searchApplicationErrorsAiTool,
+                                  GetErrorPatternSummaryAiTool getErrorPatternSummaryAiTool,
+                                  GetApplicationLogTimelineAiTool getApplicationLogTimelineAiTool,
                                   ObjectMapper objectMapper) {
         this.applicationInfoAiTool = applicationInfoAiTool;
         this.healthAiTool = healthAiTool;
@@ -62,10 +68,14 @@ public class DiagnosticToolRegistry {
         this.databaseHealthAiTool = databaseHealthAiTool;
         this.databaseConnectionPoolAiTool = databaseConnectionPoolAiTool;
         this.databaseActivityAiTool = databaseActivityAiTool;
+        this.searchApplicationErrorsAiTool = searchApplicationErrorsAiTool;
+        this.getErrorPatternSummaryAiTool = getErrorPatternSummaryAiTool;
+        this.getApplicationLogTimelineAiTool = getApplicationLogTimelineAiTool;
         this.objectMapper = objectMapper;
 
         initCallbacks();
     }
+
 
 
     private void initCallbacks() {
@@ -179,8 +189,36 @@ public class DiagnosticToolRegistry {
                 .build();
         callbacks.put(DatabaseActivityAiTool.TOOL_NAME, dbActivityCallback);
 
+        // 13. search_application_errors
+        FunctionCallback searchErrorsCallback = FunctionCallbackWrapper.builder(searchApplicationErrorsAiTool)
+                .withName(SearchApplicationErrorsAiTool.TOOL_NAME)
+                .withDescription(SearchApplicationErrorsAiTool.TOOL_DESCRIPTION)
+                .withInputType(SearchApplicationErrorsRequest.class)
+                .withObjectMapper(objectMapper)
+                .build();
+        callbacks.put(SearchApplicationErrorsAiTool.TOOL_NAME, searchErrorsCallback);
+
+        // 14. get_error_pattern_summary
+        FunctionCallback errorPatternsCallback = FunctionCallbackWrapper.builder(getErrorPatternSummaryAiTool)
+                .withName(GetErrorPatternSummaryAiTool.TOOL_NAME)
+                .withDescription(GetErrorPatternSummaryAiTool.TOOL_DESCRIPTION)
+                .withInputType(ErrorPatternSummaryRequest.class)
+                .withObjectMapper(objectMapper)
+                .build();
+        callbacks.put(GetErrorPatternSummaryAiTool.TOOL_NAME, errorPatternsCallback);
+
+        // 15. get_application_log_timeline
+        FunctionCallback timelineCallback = FunctionCallbackWrapper.builder(getApplicationLogTimelineAiTool)
+                .withName(GetApplicationLogTimelineAiTool.TOOL_NAME)
+                .withDescription(GetApplicationLogTimelineAiTool.TOOL_DESCRIPTION)
+                .withInputType(ApplicationLogTimelineRequest.class)
+                .withObjectMapper(objectMapper)
+                .build();
+        callbacks.put(GetApplicationLogTimelineAiTool.TOOL_NAME, timelineCallback);
+
         log.info("Successfully registered {} diagnostic tools: {}", callbacks.size(), callbacks.keySet());
     }
+
 
 
     public List<FunctionCallback> getAllCallbacks() {

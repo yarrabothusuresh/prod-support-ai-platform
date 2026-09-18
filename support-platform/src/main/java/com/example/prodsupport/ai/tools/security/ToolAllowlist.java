@@ -21,6 +21,11 @@ public final class ToolAllowlist {
     public static final String TOOL_CHECK_DATABASE_CONNECTION_POOL = "check_database_connection_pool";
     public static final String TOOL_CHECK_DATABASE_ACTIVITY = "check_database_activity";
 
+    // Centralized Logging Diagnostic Tools (Safe Read-Only Elasticsearch)
+    public static final String TOOL_SEARCH_APPLICATION_ERRORS = "search_application_errors";
+    public static final String TOOL_GET_ERROR_PATTERN_SUMMARY = "get_error_pattern_summary";
+    public static final String TOOL_GET_APPLICATION_LOG_TIMELINE = "get_application_log_timeline";
+
     public static final Set<String> APPROVED_TOOLS = Set.of(
             TOOL_GET_APPLICATION_INFO,
             TOOL_CHECK_APPLICATION_HEALTH,
@@ -33,7 +38,10 @@ public final class ToolAllowlist {
             TOOL_GET_KAFKA_TOPIC_INFO,
             TOOL_CHECK_DATABASE_HEALTH,
             TOOL_CHECK_DATABASE_CONNECTION_POOL,
-            TOOL_CHECK_DATABASE_ACTIVITY
+            TOOL_CHECK_DATABASE_ACTIVITY,
+            TOOL_SEARCH_APPLICATION_ERRORS,
+            TOOL_GET_ERROR_PATTERN_SUMMARY,
+            TOOL_GET_APPLICATION_LOG_TIMELINE
     );
 
     private ToolAllowlist() {}
@@ -41,5 +49,6 @@ public final class ToolAllowlist {
     public static boolean isAllowed(String toolName) {
         return toolName != null && APPROVED_TOOLS.contains(toolName);
     }
+
 }
 

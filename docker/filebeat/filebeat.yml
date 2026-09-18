@@ -1,0 +1,30 @@
+filebeat.inputs:
+  - type: filestream
+    id: payment-service-logs
+    enabled: true
+    paths:
+      - /var/log/payment-service/*.log
+    parsers:
+      - ndjson:
+          keys_under_root: true
+          overwrite_keys: true
+          add_error_key: true
+          expand_keys: true
+
+processors:
+  - add_fields:
+      target: ''
+      fields:
+        collector: filebeat
+
+setup.template.name: "prod-support-logs"
+setup.template.pattern: "prod-support-logs-*"
+setup.template.settings:
+  index.number_of_shards: 1
+  index.number_of_replicas: 0
+
+setup.ilm.enabled: false
+
+output.elasticsearch:
+  hosts: ["elasticsearch:9200"]
+  index: "prod-support-logs-%{+yyyy.MM.dd}"

@@ -25,8 +25,8 @@ class DiagnosticToolRegistrationTest {
     private DiagnosticToolRegistry toolRegistry;
 
     @Test
-    @DisplayName("Verify all 12 approved diagnostic tools are registered in tool registry")
-    void shouldRegisterAllTwelveApprovedTools() {
+    @DisplayName("Verify all 15 approved diagnostic tools are registered in tool registry")
+    void shouldRegisterAllFifteenApprovedTools() {
         Set<String> registeredNames = toolRegistry.getRegisteredToolNames();
 
         assertThat(registeredNames)
@@ -42,11 +42,14 @@ class DiagnosticToolRegistrationTest {
                         ToolAllowlist.TOOL_GET_KAFKA_TOPIC_INFO,
                         ToolAllowlist.TOOL_CHECK_DATABASE_HEALTH,
                         ToolAllowlist.TOOL_CHECK_DATABASE_CONNECTION_POOL,
-                        ToolAllowlist.TOOL_CHECK_DATABASE_ACTIVITY
+                        ToolAllowlist.TOOL_CHECK_DATABASE_ACTIVITY,
+                        ToolAllowlist.TOOL_SEARCH_APPLICATION_ERRORS,
+                        ToolAllowlist.TOOL_GET_ERROR_PATTERN_SUMMARY,
+                        ToolAllowlist.TOOL_GET_APPLICATION_LOG_TIMELINE
                 );
 
         List<FunctionCallback> callbacks = toolRegistry.getAllCallbacks();
-        assertThat(callbacks).hasSize(12);
+        assertThat(callbacks).hasSize(15);
     }
 
 
@@ -89,6 +92,18 @@ class DiagnosticToolRegistrationTest {
         FunctionCallback dbActivity = toolRegistry.getCallback(ToolAllowlist.TOOL_CHECK_DATABASE_ACTIVITY);
         assertThat(dbActivity).isNotNull();
         assertThat(dbActivity.getDescription()).contains("database activity");
+
+        FunctionCallback logErrors = toolRegistry.getCallback(ToolAllowlist.TOOL_SEARCH_APPLICATION_ERRORS);
+        assertThat(logErrors).isNotNull();
+        assertThat(logErrors.getDescription()).contains("ERROR and WARN logs");
+
+        FunctionCallback logPatterns = toolRegistry.getCallback(ToolAllowlist.TOOL_GET_ERROR_PATTERN_SUMMARY);
+        assertThat(logPatterns).isNotNull();
+        assertThat(logPatterns.getDescription()).contains("aggregated counts");
+
+        FunctionCallback logTimeline = toolRegistry.getCallback(ToolAllowlist.TOOL_GET_APPLICATION_LOG_TIMELINE);
+        assertThat(logTimeline).isNotNull();
+        assertThat(logTimeline.getDescription()).contains("chronological timeline");
     }
 
     @Test
@@ -106,6 +121,9 @@ class DiagnosticToolRegistrationTest {
         assertThat(ToolAllowlist.isAllowed("check_database_health")).isTrue();
         assertThat(ToolAllowlist.isAllowed("check_database_connection_pool")).isTrue();
         assertThat(ToolAllowlist.isAllowed("check_database_activity")).isTrue();
+        assertThat(ToolAllowlist.isAllowed("search_application_errors")).isTrue();
+        assertThat(ToolAllowlist.isAllowed("get_error_pattern_summary")).isTrue();
+        assertThat(ToolAllowlist.isAllowed("get_application_log_timeline")).isTrue();
 
         // Non-approved tools rejected
         assertThat(ToolAllowlist.isAllowed("restart_application")).isFalse();
