@@ -17,7 +17,17 @@ public class SupportProperties {
 
     private Diagnostics diagnostics = new Diagnostics();
 
+    private TracingConfig tracing = new TracingConfig();
+
     private List<DependencyConfig> dependencies = new ArrayList<>();
+
+    public TracingConfig getTracing() {
+        return tracing;
+    }
+
+    public void setTracing(TracingConfig tracing) {
+        this.tracing = tracing != null ? tracing : new TracingConfig();
+    }
 
     public boolean isEnabled() {
         return enabled;
@@ -244,6 +254,36 @@ public class SupportProperties {
 
         public void setStatus(String status) {
             this.status = status;
+        }
+    }
+
+    public static class TracingConfig {
+        private boolean enabled = true;
+        private String serviceName;
+        private String environment;
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        public String getServiceName() {
+            return serviceName;
+        }
+
+        public void setServiceName(String serviceName) {
+            this.serviceName = serviceName;
+        }
+
+        public String getEnvironment() {
+            return environment;
+        }
+
+        public void setEnvironment(String environment) {
+            this.environment = environment;
         }
     }
 }

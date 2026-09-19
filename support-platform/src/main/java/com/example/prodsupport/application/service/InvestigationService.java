@@ -50,6 +50,9 @@ public class InvestigationService {
     private final com.example.prodsupport.logging.service.LogSearchService logSearchService;
     private final com.example.prodsupport.logging.service.ErrorPatternService errorPatternService;
     private final com.example.prodsupport.logging.client.LogSearchClient logSearchClient;
+    private final com.example.prodsupport.tracing.service.TraceSearchService traceSearchService;
+    private final com.example.prodsupport.tracing.client.TraceSearchClient traceSearchClient;
+    private final com.example.prodsupport.tracing.service.TraceAnalysisService traceAnalysisService;
     private final ChatModel chatModel;
     private final SupportPromptBuilder promptBuilder;
     private final AiProperties aiProperties;
@@ -64,6 +67,9 @@ public class InvestigationService {
                                 com.example.prodsupport.logging.service.LogSearchService logSearchService,
                                 com.example.prodsupport.logging.service.ErrorPatternService errorPatternService,
                                 com.example.prodsupport.logging.client.LogSearchClient logSearchClient,
+                                com.example.prodsupport.tracing.service.TraceSearchService traceSearchService,
+                                com.example.prodsupport.tracing.client.TraceSearchClient traceSearchClient,
+                                com.example.prodsupport.tracing.service.TraceAnalysisService traceAnalysisService,
                                 ChatModel chatModel,
                                 SupportPromptBuilder promptBuilder,
                                 AiProperties aiProperties,
@@ -77,6 +83,9 @@ public class InvestigationService {
         this.logSearchService = logSearchService;
         this.errorPatternService = errorPatternService;
         this.logSearchClient = logSearchClient;
+        this.traceSearchService = traceSearchService;
+        this.traceSearchClient = traceSearchClient;
+        this.traceAnalysisService = traceAnalysisService;
         this.chatModel = chatModel;
         this.promptBuilder = promptBuilder;
         this.aiProperties = aiProperties;
@@ -305,6 +314,29 @@ public class InvestigationService {
             }
         } catch (Exception ex) {
             warnings.add("Centralized log diagnostic unavailable: " + ex.getMessage());
+        }
+
+        // 8. Distributed Tracing Diagnostics (OpenTelemetry / Jaeger)
+        try {
+            if (traceSearchClient != null && traceSearchClient.isAvailable() && traceSearchService.isTracingConfiguredAndEnabled(app)) {
+                var traceResult = traceSearchService.searchTraces(appName, environment, 15, 5, false);
+                toolsUsed.add(ToolAllowlist.TOOL_SEARCH_APPLICATION_TRACES);
+                if (!traceResult.traces().isEmpty()) {
+                    observedFacts.add("Distributed tracing: " + traceResult.traces().size() + " recent traces retrieved from Jaeger");
+                    var slowestTrace = traceResult.traces().stream().max(Comparator.comparingLong(t -> t.durationMs())).orElse(null);
+                    if (slowestTrace != null) {
+                        toolsUsed.add(ToolAllowlist.TOOL_GET_TRACE_DETAILS);
+                        observedFacts.add("Slowest observed trace '" + slowestTrace.traceId() + "' lasted " + slowestTrace.durationMs() + "ms (operation=" + slowestTrace.operation() + ")");
+                    }
+                }
+                if (traceResult.warnings() != null) {
+                    warnings.addAll(traceResult.warnings());
+                }
+            } else if (traceSearchClient != null && !traceSearchClient.isAvailable()) {
+                warnings.add("Distributed tracing is currently unavailable.");
+            }
+        } catch (Exception ex) {
+            warnings.add("Distributed tracing diagnostic unavailable: " + ex.getMessage());
         }
 
         // Build ApplicationSupportContext for model prompting

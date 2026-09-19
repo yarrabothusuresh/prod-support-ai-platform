@@ -43,7 +43,7 @@ public class AiProperties {
     /**
      * Maximum tool calls allowed in a single agentic investigation.
      */
-    private int maxToolCalls = 6;
+    private int maxToolCalls = 10;
 
     /**
      * Tool calling configuration.
@@ -53,7 +53,7 @@ public class AiProperties {
     public static class ToolCalling {
         private boolean enabled = true;
         private boolean deterministicFallback = true;
-        private int maxToolCalls = 6;
+        private int maxToolCalls = 10;
 
         public boolean isEnabled() {
             return enabled;

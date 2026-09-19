@@ -31,6 +31,9 @@
         "traceId": {
           "type": "keyword"
         },
+        "spanId": {
+          "type": "keyword"
+        },
         "logger": {
           "type": "keyword"
         },

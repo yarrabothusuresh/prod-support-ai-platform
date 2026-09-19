@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <springProperty scope="context" name="appName" source="spring.application.name" defaultValue="notification-service"/>
+    <springProperty scope="context" name="env" source="prod-support.application.environment" defaultValue="local"/>
+
+    <property name="LOG_PATH" value="logs/notification-service"/>
+    <property name="LOG_FILE" value="${LOG_PATH}/notification-service.json.log"/>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} [traceId=%X{traceId:-NONE} spanId=%X{spanId:-NONE} corr=%X{correlationId:-NONE}] - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <appender name="FILE_JSON" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_FILE}</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_PATH}/notification-service-%d{yyyy-MM-dd}.%i.json.log</fileNamePattern>
+            <maxFileSize>10MB</maxFileSize>
+            <maxHistory>7</maxHistory>
+            <totalSizeCap>100MB</totalSizeCap>
+        </rollingPolicy>
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <includeMdc>true</includeMdc>
+            <includeContext>false</includeContext>
+            <timeZone>UTC</timeZone>
+            <timestampPattern>yyyy-MM-dd'T'HH:mm:ss.SSS'Z'</timestampPattern>
+            <customFields>{"applicationName":"${appName}","environment":"${env}"}</customFields>
+            <fieldNames>
+                <timestamp>@timestamp</timestamp>
+                <level>level</level>
+                <logger>logger</logger>
+                <message>message</message>
+            </fieldNames>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE_JSON"/>
+    </root>
+
+    <logger name="com.example.notificationservice" level="DEBUG"/>
+    <logger name="com.example.prodsupport" level="INFO"/>
+</configuration>

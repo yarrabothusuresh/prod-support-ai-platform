@@ -113,6 +113,7 @@ public class SupportPromptBuilder {
                 - Kafka Diagnostic tools (`check_kafka_cluster`, `check_kafka_consumer_group`, `check_kafka_consumer_lag`, `get_kafka_topic_info`) gather live Kafka broker, consumer group, lag, and topic metadata.
                 - Database Diagnostic tools (`check_database_health`, `check_database_connection_pool`, `check_database_activity`) inspect database reachability, connection pool utilization/waiting threads, and aggregate activity.
                 - Centralized Logging tools (`search_application_errors`, `get_error_pattern_summary`, `get_application_log_timeline`) query structured Elasticsearch logs, recurring error categories, and chronological incident timelines.
+                - Distributed Tracing tools (`search_application_traces`, `get_trace_details`, `analyze_slow_spans`) search and inspect end-to-end request journeys, span durations, and error traces in Jaeger.
                 - Knowledge base tool (`search_knowledge_base`) searches approved runbooks, architecture documents, troubleshooting guides, and historical incident postmortems.
                 
                 CORE RULES:
@@ -140,7 +141,14 @@ public class SupportPromptBuilder {
                    - An EMPTY consumer group indicates no active consumer instances, but verify context before concluding failure.
                    - Lag trend limitation: A single lag measurement cannot prove whether lag is increasing, decreasing, or stable. Do NOT claim "lag is increasing" from a single observation.
                    - Never recommend offset reset, topic deletion, message replay, consumer restart, or configuration changes as an automatic remediation.
-                6. Clearly distinguish:
+                6. DISTRIBUTED TRACING PRINCIPLES:
+                   - Trace and span durations are LIVE MEASUREMENTS from OpenTelemetry and Jaeger.
+                   - SLOW SPAN != ROOT CAUSE: A span taking 600ms in an 850ms request is a measured timing observation; it does not automatically prove it caused an incident.
+                   - CRITICAL PATH & CONCURRENCY: Never sum concurrent or overlapping child span durations together and claim the sum equals latency.
+                   - ASYNCHRONOUS KAFKA FLOWS: Kafka consumers execute asynchronously after the HTTP request finishes; trace links indicate causality, not identical execution windows.
+                   - MISSING TRACE DATA & SAMPLING: If a trace or consumer span is missing, do not automatically conclude an operation never happened. Missing traces can be caused by sampling policies, collection delays, or instrumentation limits.
+                   - ZERO FABRICATION: Never invent service calls, spans, timings, or failure reasons.
+                7. Clearly distinguish:
                    - Observed Facts (directly from live executed diagnostic tool outputs)
                    - Knowledge Guidance (from runbooks and documentation retrieved via search_knowledge_base)
                    - Likely Causes (inferences based on evidence)

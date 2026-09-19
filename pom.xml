@@ -15,6 +15,7 @@
     <modules>
         <module>support-agent-spring-boot-starter</module>
         <module>demo-apps/payment-service</module>
+        <module>demo-apps/notification-service</module>
         <module>support-platform</module>
     </modules>
 

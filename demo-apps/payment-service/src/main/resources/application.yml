@@ -14,8 +14,11 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    template:
+      observation-enabled: true
     listener:
       auto-startup: ${KAFKA_CONSUMER_AUTO_STARTUP:true}
+      observation-enabled: true
   datasource:
     url: ${PAYMENT_DB_JDBC_URL:jdbc:h2:mem:payment_db;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE}
     username: ${PAYMENT_DB_USERNAME:sa}
@@ -38,6 +41,10 @@ prod-support:
     name: payment-service
     team: payments
     description: Demo payment processing service
+    environment: local
+  tracing:
+    enabled: true
+    service-name: payment-service
     environment: local
   diagnostics:
     health: true
@@ -64,3 +71,15 @@ management:
   endpoint:
     health:
       show-details: always
+  tracing:
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+      timeout: 2s
+  opentelemetry:
+    resource-attributes:
+      service.name: payment-service
+      service.version: 0.0.1-SNAPSHOT
+      deployment.environment.name: local

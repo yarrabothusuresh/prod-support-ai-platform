@@ -46,11 +46,20 @@ prod-support:
     log-prompt: false
     context-timeout-seconds: 3
     diagnostic-timeout-seconds: 3
-    max-tool-calls: 6
+    max-tool-calls: 10
     tool-calling:
       enabled: true
       deterministic-fallback: true
-      max-tool-calls: 6
+      max-tool-calls: 10
+  tracing:
+    enabled: true
+    jaeger-base-url: ${JAEGER_BASE_URL:http://localhost:16686}
+    default-window-minutes: 15
+    maximum-window-minutes: 120
+    default-result-limit: 20
+    maximum-result-limit: 50
+    request-timeout: 3s
+    search-timeout: 3s
   knowledge:
     base-directory: ./documents
     chunk-size: 800

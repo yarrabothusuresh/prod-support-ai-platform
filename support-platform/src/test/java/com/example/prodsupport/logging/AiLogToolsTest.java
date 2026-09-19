@@ -81,6 +81,8 @@ class AiLogToolsTest {
         LogSearchResult mockResult = new LogSearchResult("payment-service", "local", 1, false, List.of(entry), List.of());
         when(logSearchService.searchLogs(eq("payment-service"), eq("local"), any(), any(), any(), any(), any(), anyInt()))
                 .thenReturn(mockResult);
+        when(logSearchService.searchLogs(eq("payment-service"), eq("local"), any(), any(), any(), any(), any(), any(), anyInt()))
+                .thenReturn(mockResult);
 
         SearchApplicationErrorsRequest request = new SearchApplicationErrorsRequest("payment-service", "local", 15, "timeout");
         ToolExecutionResult<LogSearchResult> result = searchErrorsTool.apply(request);

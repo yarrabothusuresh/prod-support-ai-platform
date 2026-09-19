@@ -102,6 +102,7 @@ public class SearchApplicationErrorsAiTool implements Function<SearchApplication
                     List.of("ERROR", "WARN"),
                     request.keyword(),
                     null,
+                    request.traceId(),
                     20
             );
 

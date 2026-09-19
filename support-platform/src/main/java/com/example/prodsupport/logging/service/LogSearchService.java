@@ -71,4 +71,43 @@ public class LogSearchService {
 
         return logSearchClient.search(criteria);
     }
+
+    public LogSearchResult searchLogs(String applicationName,
+                                      String environment,
+                                      Instant startTime,
+                                      Instant endTime,
+                                      List<String> levels,
+                                      String keyword,
+                                      String correlationId,
+                                      String traceId,
+                                      Integer limit) {
+        RegisteredApplication app = accessValidator.validateAndGet(applicationName, environment);
+
+        ApplicationLoggingConfigEntity config = loggingConfigRepository.findByApplication(app)
+                .orElse(null);
+
+        if (config != null && !config.isLoggingEnabled()) {
+            return new LogSearchResult(app.getApplicationName(), app.getEnvironment(), 0, false, List.of(),
+                    List.of("Centralized logging is disabled for application '" + app.getApplicationName() + "'"));
+        }
+
+        String indexPattern = config != null && config.getIndexPattern() != null && !config.getIndexPattern().isBlank()
+                ? config.getIndexPattern()
+                : properties.getDefaultIndexPattern();
+
+        LogSearchCriteria criteria = new LogSearchCriteria(
+                app.getApplicationName(),
+                app.getEnvironment(),
+                startTime,
+                endTime,
+                levels,
+                keyword,
+                correlationId,
+                traceId,
+                limit,
+                indexPattern
+        );
+
+        return logSearchClient.search(criteria);
+    }
 }

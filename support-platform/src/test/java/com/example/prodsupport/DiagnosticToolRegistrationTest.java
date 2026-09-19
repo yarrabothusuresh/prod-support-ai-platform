@@ -25,8 +25,8 @@ class DiagnosticToolRegistrationTest {
     private DiagnosticToolRegistry toolRegistry;
 
     @Test
-    @DisplayName("Verify all 15 approved diagnostic tools are registered in tool registry")
-    void shouldRegisterAllFifteenApprovedTools() {
+    @DisplayName("Verify all 18 approved diagnostic tools are registered in tool registry")
+    void shouldRegisterAllEighteenApprovedTools() {
         Set<String> registeredNames = toolRegistry.getRegisteredToolNames();
 
         assertThat(registeredNames)
@@ -45,11 +45,14 @@ class DiagnosticToolRegistrationTest {
                         ToolAllowlist.TOOL_CHECK_DATABASE_ACTIVITY,
                         ToolAllowlist.TOOL_SEARCH_APPLICATION_ERRORS,
                         ToolAllowlist.TOOL_GET_ERROR_PATTERN_SUMMARY,
-                        ToolAllowlist.TOOL_GET_APPLICATION_LOG_TIMELINE
+                        ToolAllowlist.TOOL_GET_APPLICATION_LOG_TIMELINE,
+                        ToolAllowlist.TOOL_SEARCH_APPLICATION_TRACES,
+                        ToolAllowlist.TOOL_GET_TRACE_DETAILS,
+                        ToolAllowlist.TOOL_ANALYZE_SLOW_SPANS
                 );
 
         List<FunctionCallback> callbacks = toolRegistry.getAllCallbacks();
-        assertThat(callbacks).hasSize(15);
+        assertThat(callbacks).hasSize(18);
     }
 
 
@@ -104,6 +107,18 @@ class DiagnosticToolRegistrationTest {
         FunctionCallback logTimeline = toolRegistry.getCallback(ToolAllowlist.TOOL_GET_APPLICATION_LOG_TIMELINE);
         assertThat(logTimeline).isNotNull();
         assertThat(logTimeline.getDescription()).contains("chronological timeline");
+
+        FunctionCallback searchTraces = toolRegistry.getCallback(ToolAllowlist.TOOL_SEARCH_APPLICATION_TRACES);
+        assertThat(searchTraces).isNotNull();
+        assertThat(searchTraces.getDescription()).contains("distributed traces");
+
+        FunctionCallback traceDetails = toolRegistry.getCallback(ToolAllowlist.TOOL_GET_TRACE_DETAILS);
+        assertThat(traceDetails).isNotNull();
+        assertThat(traceDetails.getDescription()).contains("sanitized spans");
+
+        FunctionCallback slowSpans = toolRegistry.getCallback(ToolAllowlist.TOOL_ANALYZE_SLOW_SPANS);
+        assertThat(slowSpans).isNotNull();
+        assertThat(slowSpans.getDescription()).contains("slow spans");
     }
 
     @Test
@@ -124,8 +139,15 @@ class DiagnosticToolRegistrationTest {
         assertThat(ToolAllowlist.isAllowed("search_application_errors")).isTrue();
         assertThat(ToolAllowlist.isAllowed("get_error_pattern_summary")).isTrue();
         assertThat(ToolAllowlist.isAllowed("get_application_log_timeline")).isTrue();
+        assertThat(ToolAllowlist.isAllowed("search_application_traces")).isTrue();
+        assertThat(ToolAllowlist.isAllowed("get_trace_details")).isTrue();
+        assertThat(ToolAllowlist.isAllowed("analyze_slow_spans")).isTrue();
 
         // Non-approved tools rejected
+        assertThat(ToolAllowlist.isAllowed("execute_jaeger_query")).isFalse();
+        assertThat(ToolAllowlist.isAllowed("search_any_service")).isFalse();
+        assertThat(ToolAllowlist.isAllowed("access_tracing_storage")).isFalse();
+        assertThat(ToolAllowlist.isAllowed("modify_trace_data")).isFalse();
         assertThat(ToolAllowlist.isAllowed("restart_application")).isFalse();
         assertThat(ToolAllowlist.isAllowed("execute_bash_command")).isFalse();
         assertThat(ToolAllowlist.isAllowed("execute_sql")).isFalse();

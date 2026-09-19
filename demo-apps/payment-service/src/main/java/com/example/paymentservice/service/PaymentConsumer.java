@@ -9,6 +9,7 @@ import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.listener.MessageListenerContainer;
 import org.springframework.stereotype.Service;
 
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -22,18 +23,31 @@ public class PaymentConsumer {
 
     private final KafkaListenerEndpointRegistry endpointRegistry;
     private final ObjectMapper objectMapper;
+    private final org.springframework.beans.factory.ObjectProvider<io.micrometer.tracing.Tracer> tracerProvider;
+    private final org.springframework.web.client.RestClient restClient;
     private final AtomicLong processingDelayMs = new AtomicLong(0);
     private final AtomicBoolean isPaused = new AtomicBoolean(false);
     private final AtomicLong processedCount = new AtomicLong(0);
 
-    public PaymentConsumer(KafkaListenerEndpointRegistry endpointRegistry, ObjectMapper objectMapper) {
+    public PaymentConsumer(KafkaListenerEndpointRegistry endpointRegistry,
+                           ObjectMapper objectMapper,
+                           org.springframework.beans.factory.ObjectProvider<io.micrometer.tracing.Tracer> tracerProvider,
+                           org.springframework.web.client.RestClient.Builder restClientBuilder,
+                           @org.springframework.beans.factory.annotation.Value("${NOTIFICATION_SERVICE_URL:http://localhost:8082}") String notificationServiceUrl) {
         this.endpointRegistry = endpointRegistry;
         this.objectMapper = objectMapper;
+        this.tracerProvider = tracerProvider;
+        this.restClient = restClientBuilder
+                .baseUrl(notificationServiceUrl)
+                .build();
     }
 
     @KafkaListener(id = LISTENER_ID, topics = TOPIC, groupId = GROUP_ID)
     public void consumePaymentEvent(String message) {
-        try {
+        io.micrometer.tracing.Tracer tracer = tracerProvider.getIfAvailable();
+        io.micrometer.tracing.Span span = tracer != null ? tracer.nextSpan().name("payment.process-event").start() : null;
+
+        try (io.micrometer.tracing.Tracer.SpanInScope ws = tracer != null && span != null ? tracer.withSpan(span) : null) {
             long delay = processingDelayMs.get();
             if (delay > 0) {
                 log.info("Simulating consumer delay of {}ms...", delay);
@@ -42,11 +56,36 @@ public class PaymentConsumer {
             PaymentEvent event = objectMapper.readValue(message, PaymentEvent.class);
             long count = processedCount.incrementAndGet();
             log.info("Processed payment event {} (total processed: {})", event.paymentId(), count);
+
+            // Call downstream notification service propagating trace context
+            try {
+                restClient.post()
+                        .uri("/api/notifications")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .body(Map.of(
+                                "paymentId", event.paymentId(),
+                                "status", "SUCCESS",
+                                "recipient", "customer@example.com"
+                        ))
+                        .retrieve()
+                        .toBodilessEntity();
+                log.info("Successfully notified notification-service for payment {}", event.paymentId());
+            } catch (Exception ex) {
+                log.warn("Downstream notification call for payment {} did not complete: {}", event.paymentId(), ex.getMessage());
+            }
+
         } catch (InterruptedException ie) {
             Thread.currentThread().interrupt();
             log.warn("Consumer delay interrupted");
         } catch (Exception ex) {
+            if (span != null) {
+                span.error(ex);
+            }
             log.error("Error processing payment event: {}", ex.getMessage(), ex);
+        } finally {
+            if (span != null) {
+                span.end();
+            }
         }
     }
 

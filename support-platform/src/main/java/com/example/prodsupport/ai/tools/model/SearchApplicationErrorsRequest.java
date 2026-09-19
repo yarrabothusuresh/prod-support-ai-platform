@@ -13,5 +13,12 @@ public record SearchApplicationErrorsRequest(
         Integer minutes,
 
         @JsonPropertyDescription("Optional safe keyword to filter error messages")
-        String keyword
-) {}
+        String keyword,
+
+        @JsonPropertyDescription("Optional trace ID to find errors specifically related to a distributed trace")
+        String traceId
+) {
+    public SearchApplicationErrorsRequest(String applicationName, String environment, Integer minutes, String keyword) {
+        this(applicationName, environment, minutes, keyword, null);
+    }
+}

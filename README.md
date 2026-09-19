@@ -952,15 +952,168 @@ docker compose start elasticsearch
 
 ---
 
-## 20. Known Limitations
-1. **Single-Node Elasticsearch**: Current `docker-compose.yml` configures a single-node development cluster (`discovery.type=single-node`). Production deployments require a multi-node cluster with dedicated master and data nodes.
-2. **Plaintext Elasticsearch Communication**: Internal Docker network communication is unencrypted HTTP without TLS. Production environments require Elasticsearch security (`xpack.security.enabled=true`) with CA certificate validation.
-3. **Log Ingestion Delay**: Filebeat scans and ships log lines in near-real-time (typically 1-3s latency); recent in-memory ring buffers (`/support/errors`) remain available for immediate sub-second fault detection.
+---
+
+## 22. Day 9 — Distributed Tracing with OpenTelemetry, Jaeger and AI-Powered Investigation
+
+### 22.1 Conceptual Foundations (15 Core Concepts)
+
+1. **Distributed Tracing**:
+   - The observability capability that tracks the lifecycle of an end-user transaction as it flows through a distributed architecture (HTTP services, message queues, relational databases). While logs capture individual events within one service, distributed tracing connects these events into an end-to-end directed acyclic graph (DAG).
+2. **OpenTelemetry (OTel)**:
+   - A vendor-neutral, CNCF observability framework providing standardized APIs, SDKs, and data models for collecting telemetry (metrics, logs, traces). It decouples application instrumentation from specific visualization or storage backends.
+3. **OpenTelemetry Protocol (OTLP)**:
+   - The native wire protocol of OpenTelemetry, transmitting telemetry data efficiently via protobuf over gRPC (`4317`) or HTTP/JSON/Protobuf (`4318/v1/traces`).
+4. **OpenTelemetry Collector**:
+   - A high-performance proxy/gateway that receives telemetry from multiple applications, batches, processes, filters, or enriches it, and exports it to one or more observability backends (such as Jaeger, Prometheus, or cloud providers).
+5. **Jaeger**:
+   - An open-source distributed tracing platform that stores trace spans and provides search, timeline visualization, and dependency graph analysis for distributed transactions.
+6. **Trace**:
+   - An end-to-end transaction journey through a distributed system, uniquely identified by a globally unique 16-byte (32-character hexadecimal) ID. A trace consists of one or more spans.
+7. **Span**:
+   - The fundamental unit of work within a trace. A span has an operation name, start timestamp, finish duration, status (OK/ERROR), tags/attributes, events, and references to parent/child spans.
+8. **Trace ID**:
+   - A globally unique 128-bit hex string that links all spans generated during the execution of a single logical request across all microservices and infrastructure boundaries.
+9. **Parent Span ID**:
+   - The 64-bit hex identifier of the enclosing or calling span. Spans with a null `parentSpanId` are root spans, while downstream operations declare the caller's span ID as their parent, forming a hierarchy.
+10. **Context Propagation (W3C TraceContext)**:
+    - The mechanism of serializing active trace identifiers across process boundaries. In HTTP calls, this uses the W3C `traceparent` header (format: `00-{traceId}-{spanId}-{traceFlags}`). In Apache Kafka, trace context is injected into record headers.
+11. **Kafka Distributed Tracing**:
+    - Propagating trace context through asynchronous message brokers. The producer starts a span and injects `traceparent` into Kafka record headers. The consumer extracts these headers, creating a consumer span as a child or follower of the producer span, bridging async decoupled communication.
+12. **Trace-to-Log Correlation**:
+    - Linking structured log statements to distributed traces by having tracing bridges (Micrometer Tracing) automatically inject `traceId` and `spanId` into SLF4J MDC. When log statements are emitted, log aggregators (Elasticsearch) index these fields, enabling seamless jumps from trace timelines to exact log lines.
+13. **Why Longest Span != Root Cause**:
+    - In distributed architectures, high span duration represents *where time was spent*, but is often an *effect* rather than a *cause*. For example, an HTTP request to a downstream service may take 3000ms because the caller queued it behind a saturated database connection pool, or a child span blocked on a lock. Concurrent child spans cannot be naively summed, and slow spans must be cross-referenced with logs, connection pool pressure, and error details.
+14. **Trace Sampling**:
+    - The technique of recording only a representative percentage of traces (e.g. 10%, 1%, or adaptive) in high-throughput environments to prevent storage exhaustion and network overhead, while retaining 100% of error traces.
+15. **Missing Trace Data Handling**:
+    - When tracing data is absent or partially collected due to sampling, network drops, or uninstrumented third-party services, production support AI systems must explicitly declare trace gaps as facts rather than hallucinating root causes or missing spans.
 
 ---
 
-## 21. Suggested Day 9 Objective
+### 22.2 Architecture & Infrastructure Additions
 
-> Add Application Performance Monitoring (APM) and Metrics integration using Prometheus and Grafana, correlating log events, Kafka lag, and HikariCP pool pressure with time-series metrics (P95/P99 latency, JVM GC pauses, CPU utilization) and OpenTelemetry distributed trace propagation.
+```
+[Client / Tester]
+       │
+       ▼
+[payment-service :8081] ──(OTLP HTTP :4318)──┐
+       │                                     │
+   (Kafka Topic:                             ▼
+payment.events:9092) ───────────────► [otel-collector :4317/:4318]
+       │                                     │ (OTLP gRPC :4317)
+       ▼                                     ▼
+[payment-consumer] ───────────────►     [jaeger :16686]
+       │                                     ▲
+ (W3C HTTP RestClient)                       │ (Read-Only Search API)
+       ▼                                     │
+[notification-service :8082] ────────────────┤
+                                             │
+[support-platform :8080] ────────────────────┘
+  ├─ TraceSearchService (scope & bounds validation)
+  ├─ TraceAnalysisService (slow spans, timeline, error spans)
+  ├─ TraceEvidenceMapper (grounded evidence summaries)
+  └─ AI Tools: search_application_traces, get_trace_details, analyze_slow_spans
+```
+
+#### Services Added to `docker-compose.yml`:
+- **`jaeger`** (`jaegertracing/all-in-one:1.60`):
+  - Ports: `16686:16686` (UI and HTTP query API), `4317` (internal OTLP gRPC).
+- **`otel-collector`** (`otel/opentelemetry-collector-contrib:0.108.0`):
+  - Ports: `4317:4317` (gRPC receiver), `4318:4318` (HTTP receiver).
+  - Config: `docker/otel/collector-config.yaml` routing incoming OTLP batches to `jaeger:4317`.
+
+---
+
+### 22.3 Safe AI Tracing Tools
+
+Three read-only diagnostic tools registered with Spring AI and protected by `ToolAllowlist`:
+
+| Tool Name | Input Schema | Output Schema | Purpose & Safety Constraints |
+| :--- | :--- | :--- | :--- |
+| `search_application_traces` | `SearchApplicationTracesRequest` (`applicationName`, `environment`, `minutes`, `errorOnly`) | `TraceSearchResult` | Searches recent traces within application investigation scope. Clamped lookback (max 120m) and results. |
+| `get_trace_details` | `GetTraceDetailsRequest` (`applicationName`, `environment`, `traceId`) | `TraceDetailResult` | Validates hex trace ID, sanitizes span tags (redacts secrets, credentials, tokens), returns measured durations and span hierarchy. |
+| `analyze_slow_spans` | `AnalyzeSlowSpansRequest` (`applicationName`, `environment`, `traceId`) | `SlowSpanAnalysisResult` | Identifies longest span and operations exceeding latency ratios. Explicitly appends diagnostic guidance that slow spans are timing measurements and do not prove root causation. |
+
+---
+
+### 22.4 Database Schema Migrations
+
+- **PostgreSQL**: `support-platform/src/main/resources/db/migration/V6__create_application_tracing_config.sql`
+- **H2 Test**: `support-platform/src/test/resources/db/migration/h2/V6__create_application_tracing_config.sql`
+
+Creates table `application_tracing_config` binding `application_id` to `tracing_enabled`, `tracing_service_name`, `tracing_environment`, and `jaeger_query_base_url`. Pre-seeded for `payment-service` and `notification-service`.
+
+---
+
+### 22.5 REST APIs
+
+- `GET /api/tracing/status`: Verifies Jaeger connectivity and OTel telemetry configuration.
+- `POST /api/applications/{id}/traces/search`: Query traces with lookback, limit, and error filters.
+- `GET /api/applications/{id}/traces/{traceId}`: Retrieve detailed trace timeline, service list, and sanitized spans.
+
+---
+
+### 22.6 PowerShell Verification Commands
+
+#### 1. Start Infrastructure:
+```powershell
+docker compose up -d jaeger otel-collector
+```
+
+#### 2. Check Tracing Infrastructure Health:
+```powershell
+curl.exe -X GET "http://localhost:8080/api/tracing/status"
+```
+
+#### 3. Submit Traced Payment (Cross-Service Context Propagation):
+```powershell
+curl.exe -X POST "http://localhost:8081/api/payments" `
+  -H "Content-Type: application/json" `
+  -H "X-Correlation-ID: CORR-TRACE-TEST-001" `
+  -d '{"paymentId": "PAY-1001", "amount": 199.99, "currency": "USD"}'
+```
+
+#### 4. Simulate Slow Payment (Bounded Latency):
+```powershell
+curl.exe -X POST "http://localhost:8081/demo/fault/tracing/slow-payment?delayMs=1500"
+```
+
+#### 5. Simulate Traced Payment Error:
+```powershell
+curl.exe -X POST "http://localhost:8081/demo/fault/tracing/payment-error?errorType=BankingGatewayTimeoutException&message=Core%20banking%20API%20timed%20out"
+```
+
+#### 6. Search Traces via Support Platform:
+```powershell
+curl.exe -X POST "http://localhost:8080/api/applications/1/traces/search" `
+  -H "Content-Type: application/json" `
+  -d '{"minutes": 30, "limit": 10, "errorOnly": false}'
+```
+
+#### 7. Agentic AI Trace Investigation:
+```powershell
+curl.exe -X POST "http://localhost:8080/api/support/investigate" `
+  -H "Content-Type: application/json" `
+  -d '{
+    "applicationName": "payment-service",
+    "environment": "local",
+    "question": "Search recent traces for payment-service, analyze slow spans, correlate with recent logs, and check for payment errors."
+  }'
+```
+
+---
+
+## 23. Known Limitations
+1. **Single-Node Jaeger**: Jaeger all-in-one is deployed using an in-memory storage engine suitable for development and local testing. Production requires OpenSearch, Elasticsearch, or Cassandra persistent storage.
+2. **Localhost OTLP Exporters**: Demo applications are configured to push traces to `localhost:4318/v1/traces`. Containerized microservices running in Docker networks should set `MANAGEMENT_OTLP_TRACING_ENDPOINT=http://otel-collector:4318/v1/traces`.
+3. **Trace Sampling Rate**: Default sampling in development is 1.0 (100%). In high-throughput production environments, `management.tracing.sampling.probability` should be configured to 0.05-0.10.
+
+---
+
+## 24. Suggested Day 10 Objective
+
+> Add Infrastructure & Application Metrics Collection with Prometheus and Grafana dashboards, correlating OTel traces, Kafka consumer lag, and HikariCP connection pool metrics with AI anomaly detection.
+
 
 

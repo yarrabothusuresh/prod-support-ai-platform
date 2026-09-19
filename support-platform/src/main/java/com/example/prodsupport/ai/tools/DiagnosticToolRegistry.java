@@ -36,6 +36,9 @@ public class DiagnosticToolRegistry {
     private final SearchApplicationErrorsAiTool searchApplicationErrorsAiTool;
     private final GetErrorPatternSummaryAiTool getErrorPatternSummaryAiTool;
     private final GetApplicationLogTimelineAiTool getApplicationLogTimelineAiTool;
+    private final SearchApplicationTracesAiTool searchApplicationTracesAiTool;
+    private final GetTraceDetailsAiTool getTraceDetailsAiTool;
+    private final AnalyzeSlowSpansAiTool analyzeSlowSpansAiTool;
     private final ObjectMapper objectMapper;
 
     private final Map<String, FunctionCallback> callbacks = new LinkedHashMap<>();
@@ -55,6 +58,9 @@ public class DiagnosticToolRegistry {
                                   SearchApplicationErrorsAiTool searchApplicationErrorsAiTool,
                                   GetErrorPatternSummaryAiTool getErrorPatternSummaryAiTool,
                                   GetApplicationLogTimelineAiTool getApplicationLogTimelineAiTool,
+                                  SearchApplicationTracesAiTool searchApplicationTracesAiTool,
+                                  GetTraceDetailsAiTool getTraceDetailsAiTool,
+                                  AnalyzeSlowSpansAiTool analyzeSlowSpansAiTool,
                                   ObjectMapper objectMapper) {
         this.applicationInfoAiTool = applicationInfoAiTool;
         this.healthAiTool = healthAiTool;
@@ -71,6 +77,9 @@ public class DiagnosticToolRegistry {
         this.searchApplicationErrorsAiTool = searchApplicationErrorsAiTool;
         this.getErrorPatternSummaryAiTool = getErrorPatternSummaryAiTool;
         this.getApplicationLogTimelineAiTool = getApplicationLogTimelineAiTool;
+        this.searchApplicationTracesAiTool = searchApplicationTracesAiTool;
+        this.getTraceDetailsAiTool = getTraceDetailsAiTool;
+        this.analyzeSlowSpansAiTool = analyzeSlowSpansAiTool;
         this.objectMapper = objectMapper;
 
         initCallbacks();
@@ -215,6 +224,33 @@ public class DiagnosticToolRegistry {
                 .withObjectMapper(objectMapper)
                 .build();
         callbacks.put(GetApplicationLogTimelineAiTool.TOOL_NAME, timelineCallback);
+
+        // 16. search_application_traces
+        FunctionCallback searchTracesCallback = FunctionCallbackWrapper.builder(searchApplicationTracesAiTool)
+                .withName(SearchApplicationTracesAiTool.TOOL_NAME)
+                .withDescription(SearchApplicationTracesAiTool.TOOL_DESCRIPTION)
+                .withInputType(SearchApplicationTracesRequest.class)
+                .withObjectMapper(objectMapper)
+                .build();
+        callbacks.put(SearchApplicationTracesAiTool.TOOL_NAME, searchTracesCallback);
+
+        // 17. get_trace_details
+        FunctionCallback traceDetailsCallback = FunctionCallbackWrapper.builder(getTraceDetailsAiTool)
+                .withName(GetTraceDetailsAiTool.TOOL_NAME)
+                .withDescription(GetTraceDetailsAiTool.TOOL_DESCRIPTION)
+                .withInputType(GetTraceDetailsRequest.class)
+                .withObjectMapper(objectMapper)
+                .build();
+        callbacks.put(GetTraceDetailsAiTool.TOOL_NAME, traceDetailsCallback);
+
+        // 18. analyze_slow_spans
+        FunctionCallback slowSpansCallback = FunctionCallbackWrapper.builder(analyzeSlowSpansAiTool)
+                .withName(AnalyzeSlowSpansAiTool.TOOL_NAME)
+                .withDescription(AnalyzeSlowSpansAiTool.TOOL_DESCRIPTION)
+                .withInputType(AnalyzeSlowSpansRequest.class)
+                .withObjectMapper(objectMapper)
+                .build();
+        callbacks.put(AnalyzeSlowSpansAiTool.TOOL_NAME, slowSpansCallback);
 
         log.info("Successfully registered {} diagnostic tools: {}", callbacks.size(), callbacks.keySet());
     }

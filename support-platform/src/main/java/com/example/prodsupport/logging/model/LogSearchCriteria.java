@@ -11,6 +11,7 @@ public record LogSearchCriteria(
         List<String> levels,
         String keyword,
         String correlationId,
+        String traceId,
         Integer limit,
         String indexPattern
 ) {
@@ -18,5 +19,19 @@ public record LogSearchCriteria(
         if (levels == null) {
             levels = List.of();
         }
+    }
+
+    public LogSearchCriteria(
+            String applicationName,
+            String environment,
+            Instant startTime,
+            Instant endTime,
+            List<String> levels,
+            String keyword,
+            String correlationId,
+            Integer limit,
+            String indexPattern
+    ) {
+        this(applicationName, environment, startTime, endTime, levels, keyword, correlationId, null, limit, indexPattern);
     }
 }

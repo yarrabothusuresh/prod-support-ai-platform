@@ -113,6 +113,11 @@ public class LogQueryBuilder {
             filterList.add(Map.of("term", Map.of("correlationId", criteria.correlationId().trim())));
         }
 
+        // Optional traceId filter
+        if (criteria.traceId() != null && !criteria.traceId().isBlank()) {
+            filterList.add(Map.of("term", Map.of("traceId", criteria.traceId().trim())));
+        }
+
         // Optional safe keyword text match
         if (criteria.keyword() != null && !criteria.keyword().isBlank()) {
             mustList.add(Map.of("match", Map.of("message", Map.of("query", criteria.keyword().trim()))));
