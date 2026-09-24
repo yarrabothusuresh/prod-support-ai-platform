@@ -80,6 +80,13 @@ prod-support:
     lag:
       warning-threshold: 100
       critical-threshold: 1000
+  metrics:
+    enabled: true
+    prometheus-base-url: ${PROMETHEUS_BASE_URL:http://localhost:9090}
+    default-window-minutes: 15
+    maximum-window-hours: 24
+    query-timeout: 5s
+    maximum-data-points: 500
   diagnostics:
     timeout: 3s
 
@@ -87,4 +94,9 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+    prometheus:
+      enabled: true

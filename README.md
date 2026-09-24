@@ -1,6 +1,6 @@
 # AI Production Support Platform (`prod-support-ai-platform`)
 
-> **Day 8 Milestone: Centralized Log Diagnostics with Elasticsearch, Kibana & Spring AI**
+> **Day 10 Milestone: Production Metrics, Prometheus, Grafana & AI Alert Correlation**
 
 ---
 
@@ -32,7 +32,8 @@ The **AI Production Support Platform** is an enterprise-grade platform designed 
   * **Document Ingestion & Chunking Engine**: Ingestion pipeline (`KnowledgeIngestionService`, `DocumentChunker`) with sliding window chunking (default 800 chars, 120 overlap), rich metadata stamping (`documentId`, `applicationName`, `environment`, `documentType`, `title`, `source`, `chunkNumber`, `version`, `owner`), content hashing (SHA-256) for deduplication, and automated secret scanning (`SecretDetector`).
   * **Strict Path Traversal Protection**: `SafeDocumentReader` enforces that only documents under the configured `./documents` base directory can be accessed.
   * **Unified Knowledge Q&A API**: Dedicated endpoint `POST /api/support/knowledge-chat` for grounded runbook, architecture, and incident Q&A with strict citations and anti-hallucination rules.
-  * **Day 6 Kafka Production Diagnostics**:
+
+* **Day 6 Kafka Production Diagnostics**:
   * **Decoupled Kafka Admin Client**: Safe read-only Apache Kafka cluster inspection (`ApacheKafkaDiagnosticClient`) checking broker health, cluster ID, topic partitions/relicas, consumer group states, and consumer lag.
   * **Lag Calculation**: Accurate consumer lag computation (`logEndOffset - currentOffset`) across all topic partitions.
   * **4 Kafka Diagnostic AI Tools**: `check_kafka_cluster`, `check_kafka_consumer_group`, `check_kafka_consumer_lag`, `get_kafka_topic_info`.
@@ -49,8 +50,22 @@ The **AI Production Support Platform** is an enterprise-grade platform designed 
   * **Application Logging Configuration**: `ApplicationLoggingConfigEntity` and Flyway migration `V5` storing index pattern, Elasticsearch service URL, and enabled status per registered application.
   * **Strict Server-Side Log Query Builder**: Hardcoded, parameterized Elasticsearch queries with mandatory application, environment, and time-range filtering, limit clamping (1..100), and automated rejection of index tampering or Lucene/KQL DSL injection.
   * **Aggregated Error Patterns & Chronological Timelines**: `ErrorPatternService` grouping recurring exceptions by type, message pattern, and component; `LogTimelineService` reconstructing chronological event sequences across subsystems.
-  * **3 Read-Only Log Diagnostic AI Tools**: `search_application_errors`, `get_error_pattern_summary`, `get_application_log_timeline` bringing total registered AI tools to 15.
-  * **Correlated Diagnostics & Prompt Injection Defense**: `SupportPromptBuilder` isolates untrusted log evidence with strict security demarcations; `InvestigationService` correlates logs with Kafka consumer lag, DB pool metrics, and RAG runbooks; graceful degradation when Elasticsearch is unreachable.
+  * **3 Read-Only Log Diagnostic AI Tools**: `search_application_errors`, `get_error_pattern_summary`, `get_application_log_timeline`.
+
+* **Day 9 Distributed Tracing with OpenTelemetry & Jaeger**:
+  * **OTel & Jaeger Stack**: Containerized Jaeger All-in-One 1.60 and OpenTelemetry Collector Contrib 0.108.0 ingesting OTLP spans over gRPC (4317) and HTTP (4318).
+  * **Context Propagation**: Automatic W3C `traceparent` header propagation across HTTP (`RestClient`) and Kafka record headers.
+  * **Trace Search & Span Analysis**: `TraceSearchService` and `TraceAnalysisService` providing duration calculation, error tagging, and slow span identification without equating slow spans to root causes.
+  * **3 Read-Only Tracing AI Tools**: `search_application_traces`, `get_trace_details`, `analyze_slow_spans`.
+
+* **Day 10 Production Metrics, Prometheus, Grafana & AI Alert Correlation**:
+  * **Prometheus & Grafana Stack**: Containerized Prometheus 2.53.0 and Grafana 11.1.0 with automated datasource and dashboard provisioning.
+  * **Micrometer Metrics Collection**: Microservices instrumented with `micrometer-registry-prometheus`, exposing `/actuator/prometheus` and publishing custom business metrics (`payment_requests_total`, `payment_success_total`, `payment_failure_total`, `payment_processing_duration_seconds`).
+  * **The 4 Golden Signals & Trend Analysis**: `ApplicationMetricsService` aggregates Latency, Traffic, Errors, and Saturation with trend detection (STABLE, INCREASING, DECREASING, SPIKE).
+  * **Safe Server-Side Metric Queries**: `PrometheusMetricsQueryClient` executes parameterized templates (`MetricQueryTemplate`) with strictly sanitized inputs and zero arbitrary PromQL execution.
+  * **Prometheus Alert Ingestion & Correlation**: `PrometheusAlertService` ingests active alerts and correlates them with Golden Signals, traces, logs, Kafka consumer lag, DB pool saturation, and RAG runbooks.
+  * **5 Safe Read-Only Metrics AI Tools**: `get_application_metrics`, `get_http_metrics`, `get_jvm_metrics`, `get_resource_metrics`, `get_active_alerts`, bringing total approved AI tools to 23.
+  * **Platform Telemetry**: `SupportPlatformMetrics` tracks diagnostic operations, AI tool executions, response times, and failure rates.
 
 ---
 
@@ -69,6 +84,9 @@ The **AI Production Support Platform** is an enterprise-grade platform designed 
 |                                                                                                                                       |
 |  [Controllers]                                                                                                                        |
 |    - SupportInvestigationController (/api/support/investigate - Multi-subsystem correlation & runbook guidance)                       |
+|    - ApplicationMetricsController   (/api/applications/{id}/metrics/* - Golden signals, HTTP, JVM, resources, alerts)                 |
+|    - MetricsStatusController        (/api/metrics/status - Prometheus connectivity, readiness & health diagnostics)                    |
+|    - TraceSearchController          (/api/applications/{id}/traces/* - Distributed trace search, span analysis, slow spans)            |
 |    - LogSearchController            (/api/applications/{id}/logs/* - Filtered errors, pattern aggregation, timeline)                  |
 |    - LoggingStatusController        (/api/logging/status - Elasticsearch health and connection diagnostics)                           |
 |    - ApplicationKafkaDiagnostic...  (/api/applications/{id}/diagnostics/kafka - Kafka cluster, topics, consumer lag)                  |
@@ -77,7 +95,7 @@ The **AI Production Support Platform** is an enterprise-grade platform designed 
 |    - KnowledgeController            (/api/knowledge/* - Document Ingestion, Semantic Search, Status)                                   |
 |    - ApplicationController          (/api/applications - App onboarding, configuration management)                                   |
 |                                                                                                                                       |
-|  [Spring AI Tool Registry - 15 Approved Read-Only Diagnostic Tools]                                                                   |
+|  [Spring AI Tool Registry - 23 Approved Read-Only Diagnostic Tools]                                                                   |
 |    * Microservice Telemetry:   1. get_application_info        2. check_application_health                                                 |
 |                                3. get_recent_errors           4. check_dependencies                                                       |
 |    * Knowledge Base & RAG:     5. search_knowledge_base                                                                                   |
@@ -87,12 +105,18 @@ The **AI Production Support Platform** is an enterprise-grade platform designed 
 |                               12. check_database_activity                                                                             |
 |    * Centralized Logs (ES):   13. search_application_errors  14. get_error_pattern_summary                                                |
 |                               15. get_application_log_timeline                                                                        |
+|    * Distributed Tracing (OT):16. search_application_traces  17. get_trace_details                                                       |
+|                               18. analyze_slow_spans                                                                                  |
+|    * Metrics & Alerts (Prom): 19. get_application_metrics    20. get_http_metrics                                                         |
+|                               21. get_jvm_metrics            22. get_resource_metrics                                                    |
+|                               23. get_active_alerts                                                                                   |
 |                                                                                                                                       |
 |  [Security & Diagnostic Boundaries]                                                                                                   |
-|    - ToolAllowlist: Enforces strictly approved 15 read-only tools; rejects arbitrary DSL, bash, SQL, or restarts                      |
+|    - ToolAllowlist: Enforces strictly approved 23 read-only tools; rejects arbitrary DSL, PromQL, bash, SQL, or restarts               |
+|    - MetricQueryTemplate: Strict server-side parameterized PromQL generation; blocks arbitrary user-supplied PromQL                   |
 |    - LogQueryBuilder: Strict server-side validation, mandatory app/env/time filters, limit clamping (1..100)                         |
-|    - LogSanitizer: Pre-LLM sanitization masking passwords, bearer tokens, API keys, private keys, and secrets                        |
-|    - SupportPromptBuilder: Isolates untrusted log evidence to prevent prompt injection                                                |
+|    - LogSanitizer / TraceSanitizer: Pre-LLM sanitization masking passwords, bearer tokens, API keys, private keys, and secrets       |
+|    - SupportPromptBuilder: Isolates untrusted telemetry and metric evidence to prevent prompt injection                               |
 |    - ApplicationAccessValidator: Anti-SSRF boundary checking against registered application base URLs                                 |
 +-------------------+--------------------+--------------------+-----------------------+--------------------+----------------------------+
                     │                    │                    │                       │                    │
@@ -1104,16 +1128,189 @@ curl.exe -X POST "http://localhost:8080/api/support/investigate" `
 
 ---
 
-## 23. Known Limitations
-1. **Single-Node Jaeger**: Jaeger all-in-one is deployed using an in-memory storage engine suitable for development and local testing. Production requires OpenSearch, Elasticsearch, or Cassandra persistent storage.
-2. **Localhost OTLP Exporters**: Demo applications are configured to push traces to `localhost:4318/v1/traces`. Containerized microservices running in Docker networks should set `MANAGEMENT_OTLP_TRACING_ENDPOINT=http://otel-collector:4318/v1/traces`.
-3. **Trace Sampling Rate**: Default sampling in development is 1.0 (100%). In high-throughput production environments, `management.tracing.sampling.probability` should be configured to 0.05-0.10.
+---
+
+## 23. Day 10 — Production Metrics, Prometheus, Grafana & AI Alert Correlation
+
+### 23.1 Conceptual Foundations (15 Core Concepts)
+
+1. **Production Metrics**:
+   - Aggregated numeric telemetry recorded over time, providing visibility into system health, capacity, workload, and performance. Unlike logs which capture individual string events, metrics capture numeric counters, rates, and states at uniform intervals.
+2. **Prometheus Architecture**:
+   - A multi-dimensional time-series database and monitoring system utilizing a pull-based model (scraping HTTP target endpoints) with an expressive PromQL engine and autonomous alert rule evaluation.
+3. **PromQL (Prometheus Query Language)**:
+   - A functional query language allowing real-time selection, aggregation, slicing, and mathematical rate calculation across time-series metrics.
+4. **Counters vs. Gauges vs. Histograms vs. Summaries**:
+   - *Counter*: A cumulative metric that monotonically increases (or resets to 0 on restart), e.g., total requests, errors.
+   - *Gauge*: A metric that represents a single numerical value that can arbitrarily fluctuate up or down, e.g., active DB pool connections, memory usage, CPU percentage.
+   - *Histogram*: Samples observations (usually request durations or response sizes) and counts them in configurable bucketing intervals while providing sum and count.
+   - *Summary*: Similar to histograms, calculates client-side quantiles over a sliding time window.
+5. **The 4 Golden Signals (Google SRE)**:
+   - *Latency*: The time taken to service a request (e.g., HTTP p50, p95, p99 durations).
+   - *Traffic*: Demand placed on the system (e.g., HTTP requests per second).
+   - *Errors*: Rate of failed requests, either explicitly (5xx HTTP codes) or implicitly (exceptions, timeout dropoffs).
+   - *Saturation*: How "full" a service or infrastructure resource is (e.g., HikariCP connection pool usage, CPU utilization, JVM heap memory).
+6. **Micrometer & Spring Boot Actuator**:
+   - An application metrics facade supporting diverse monitoring backends. In Spring Boot, `micrometer-registry-prometheus` binds JVM, thread, HTTP web MVC, and custom business meters into Prometheus exposition format.
+7. **`/actuator/prometheus` Scraping Endpoint**:
+   - The standardized HTTP endpoint exposed by Spring Boot microservices presenting formatted Prometheus text-based scrape targets (`# HELP`, `# TYPE`, labels, timestamps).
+8. **Push vs. Pull Telemetry Models**:
+   - Distributed tracing and structured logs typically use *push* models (services transmit OTLP batches or Filebeat sends logs to collectors). Prometheus uses a *pull* model where Prometheus periodically queries `/actuator/prometheus`, avoiding application-side queue backpressure while automatically tracking service availability via the synthetic `up` metric.
+9. **Grafana Dashboards & Automated Provisioning**:
+   - A composable visualization and analytics platform. Declarative YAML and JSON provisioning in `docker/grafana/provisioning/` ensures dashboards and Prometheus datasources are automatically configured without manual UI clicks.
+10. **Alerting Rules & Alertmanager Integration**:
+    - Declarative alert rules evaluated periodically by Prometheus (e.g., `PaymentServiceHighErrorRate`, `PaymentServiceSlowProcessing`, `PaymentDatabaseConnectionPoolNearSaturation`). Alerts transition from `inactive` to `pending` to `firing` based on `for: 1m` windows.
+11. **Correlating Metrics with Logs, Traces & Knowledge**:
+    - Metrics indicate *when* an anomaly occurred and *what* subsystem is impacted (e.g., error rate spike to 20%). Traces isolate *which span* or downstream hop introduced latency. Logs provide *why* it failed (exact stack traces, error messages). Knowledge base RAG provides *remediation steps* (runbooks, playbooks).
+12. **Safe Metric Diagnostics vs. Arbitrary Query Execution**:
+    - To prevent PromQL injection, SSRF, DoS through expensive regex or high-cardinality label queries, the AI platform uses strictly parameterized `MetricQueryTemplate` objects. Arbitrary PromQL input from users or LLMs is completely blocked.
+13. **Trend Analysis & Percentile Calculations**:
+    - Detecting whether metric time-series are `STABLE`, `INCREASING`, `DECREASING`, or experiencing a `SPIKE` by evaluating moving averages and rate comparisons.
+14. **Graceful Degradation in Metrics Infrastructure**:
+    - When Prometheus is temporarily unreachable, down, or misconfigured, the support platform gracefully reports degraded metric availability with descriptive warnings rather than failing user investigations.
+15. **Metric Evidence in AI Diagnostic Prompts**:
+    - Strict prompt grounding rules in `SupportPromptBuilder` instruct the LLM to cite specific numbers (error rates, requests/sec, heap %, active connections), explicitly declare when data is missing or Prometheus is down, and distinguish correlation from causation.
 
 ---
 
-## 24. Suggested Day 10 Objective
+### 23.2 Metric vs. Log vs. Trace Comparison Table
 
-> Add Infrastructure & Application Metrics Collection with Prometheus and Grafana dashboards, correlating OTel traces, Kafka consumer lag, and HikariCP connection pool metrics with AI anomaly detection.
+| Dimension | Metrics (Day 10) | Centralized Logs (Day 8) | Distributed Traces (Day 9) |
+| :--- | :--- | :--- | :--- |
+| **Primary Question Answered** | *What is the scale of the problem? Is there an anomaly?* | *Why did a specific operation fail?* | *Where was time spent across distributed services?* |
+| **Data Format** | Numeric time-series (float64, timestamps, key-value labels) | Structured JSON/text records (timestamp, message, stack trace) | Hierarchical spans (traceId, spanId, parentId, duration, tags) |
+| **Transmission Model** | Pull (Prometheus scrapes HTTP endpoint) | Push (Filebeat ships NDJSON logs to Elasticsearch) | Push (OpenTelemetry OTLP pushes to Collector/Jaeger) |
+| **Cardinality & Storage Cost** | Low-to-medium (bounded labels, very efficient time-series) | High (unbounded text, requires disk indexing) | Medium-to-high (requires sampling in high-throughput) |
+| **AI Platform Tools** | `get_application_metrics`, `get_http_metrics`, `get_jvm_metrics`, `get_resource_metrics`, `get_active_alerts` | `search_application_errors`, `get_error_pattern_summary`, `get_application_log_timeline` | `search_application_traces`, `get_trace_details`, `analyze_slow_spans` |
+| **Safety Enforcement** | `MetricQueryTemplate` parameterization (no arbitrary PromQL) | Server-side query DSL builder with limit clamping (1..100) | Scope validation, hex ID verification, tag credential scrubbing |
+
+---
+
+### 23.3 Architecture & Infrastructure Additions
+
+```
+[payment-service :8081] ───┐
+  - /actuator/prometheus   │
+  - payment_requests_total │
+  - payment_processing...  │ (HTTP Scrape :9090)
+                           ▼
+[notification-service:8082] ──► [prometheus :9090] ◄─── (Datasource :9090) ───► [grafana :3000]
+  - /actuator/prometheus           │                                               - Payment Service Dashboard
+                                   │ (Safe Parameterized PromQL)
+                                   ▼
+                        [support-platform :8080]
+                          ├─ PrometheusMetricsQueryClient (timeouts, health check)
+                          ├─ MetricQueryTemplate (strict PromQL templates)
+                          ├─ TrendAnalysisService (stable, spike, trend detection)
+                          ├─ ApplicationMetricsService (Golden Signals, JVM, HTTP, Pool)
+                          ├─ PrometheusAlertService (active firing & pending alerts)
+                          ├─ MetricEvidenceMapper (deterministic prompt grounding)
+                          └─ SupportPlatformMetrics (platform diagnostic telemetry)
+```
+
+#### Services Added to `docker-compose.yml`:
+- **`prometheus`** (`prom/prometheus:v2.53.0`):
+  - Ports: `9090:9090`
+  - Scraping targets: `payment-service:8081`, `notification-service:8082`, `support-platform:8080`
+  - Alert rules: `docker/prometheus/rules/alert_rules.yml`
+- **`grafana`** (`grafana/grafana:11.1.0`):
+  - Ports: `3000:3000` (credentials: `admin`/`admin`)
+  - Datasource provisioning: `docker/grafana/provisioning/datasources/prometheus.yml`
+  - Dashboard provisioning: `docker/grafana/provisioning/dashboards/dashboards.yml`
+  - Custom dashboard: `docker/grafana/dashboards/payment-service-dashboard.json`
+
+---
+
+### 23.4 The 5 Safe AI Metric Diagnostic Tools
+
+| Tool Name | Input Schema | Output Schema | Purpose & Safety Constraints |
+| :--- | :--- | :--- | :--- |
+| `get_application_metrics` | `GetApplicationMetricsRequest` (`applicationName`, `environment`) | `ApplicationMetricsSummaryResult` | Safe Golden Signals summary (availability, throughput, error rate, p95 latency, JVM heap %, active DB pool). |
+| `get_http_metrics` | `GetHttpMetricsRequest` (`applicationName`, `environment`, `lookbackMinutes`) | `HttpMetricsResult` | HTTP request rates, 2xx/4xx/5xx status breakdowns, and latency percentiles (p50, p95, p99). |
+| `get_jvm_metrics` | `GetJvmMetricsRequest` (`applicationName`, `environment`) | `JvmMetricsResult` | JVM heap/non-heap memory utilization, garbage collection rates, thread count, and uptime. |
+| `get_resource_metrics` | `GetResourceMetricsRequest` (`applicationName`, `environment`) | `ResourceMetricsResult` | Process CPU load, system CPU load, open file descriptors, and saturation indicators. |
+| `get_active_alerts` | `GetActiveAlertsRequest` (`applicationName`, `environment`) | `ActiveAlertsResult` | Retrieves currently active (`firing` or `pending`) Prometheus alerts correlated with the application. |
+
+**Safety Guarantee**: The AI tools and REST APIs execute *only* pre-approved templates from `MetricQueryTemplate`. Arbitrary PromQL submission (`execute_promql_query`, `silence_alert`) is completely blocked by `ToolAllowlist`.
+
+---
+
+### 23.5 Database Schema Migrations
+
+- **PostgreSQL**: `support-platform/src/main/resources/db/migration/V7__create_application_metrics_config.sql`
+- **H2 Test**: `support-platform/src/test/resources/db/migration/h2/V7__create_application_metrics_config.sql`
+
+Creates table `application_metrics_config` linking `application_id` to `metrics_enabled`, `metrics_job_name`, `metrics_instance_name`, `metrics_path`, and `prometheus_base_url`. Pre-seeded for `payment-service` and `notification-service`.
+
+---
+
+### 23.6 REST APIs
+
+- `GET /api/metrics/status`: Health and availability status of the Prometheus integration.
+- `GET /api/applications/{id}/metrics/config`: Retrieve metrics configuration for an application.
+- `PUT /api/applications/{id}/metrics/config`: Update metrics configuration.
+- `GET /api/applications/{id}/metrics/summary`: Golden Signals summary for an application.
+- `POST /api/applications/{id}/metrics/query`: Safe controlled query execution by template name (`http_request_rate`, `http_error_rate`, `jvm_memory_used_ratio`, etc.).
+- `GET /api/applications/{id}/metrics/alerts`: Active Prometheus alerts filtered for an application.
+
+---
+
+### 23.7 PowerShell Verification Commands
+
+#### 1. Start Prometheus and Grafana:
+```powershell
+docker compose up -d prometheus grafana
+```
+
+#### 2. Check Metrics Infrastructure Health:
+```powershell
+curl.exe -X GET "http://localhost:8080/api/metrics/status"
+```
+
+#### 3. View Application Prometheus Metrics:
+```powershell
+curl.exe -X GET "http://localhost:8081/actuator/prometheus"
+```
+
+#### 4. Simulate Production Load on Payment Service:
+```powershell
+curl.exe -X POST "http://localhost:8081/demo/load/metrics/simulate-traffic?count=100&errorRatio=0.15"
+```
+
+#### 5. Retrieve Application Metrics Summary (Golden Signals):
+```powershell
+curl.exe -X GET "http://localhost:8080/api/applications/1/metrics/summary"
+```
+
+#### 6. Retrieve Active Prometheus Alerts:
+```powershell
+curl.exe -X GET "http://localhost:8080/api/applications/1/metrics/alerts"
+```
+
+#### 7. Agentic Multi-Pillar AI Investigation (Metrics + Traces + Logs + Kafka + DB + RAG):
+```powershell
+curl.exe -X POST "http://localhost:8080/api/support/investigate" `
+  -H "Content-Type: application/json" `
+  -d '{
+    "applicationName": "payment-service",
+    "environment": "local",
+    "question": "Payment processing is degraded. Inspect Prometheus golden signals, active alerts, traces, logs, Kafka consumer lag, and HikariCP connection pool."
+  }'
+```
+
+---
+
+## 24. Known Limitations
+1. **Single-Node Prometheus & Jaeger**: Prometheus and Jaeger are configured for single-node local execution without remote long-term storage (Thanos/Cortex/M3DB).
+2. **Prometheus Scrape Interval**: Default scrape interval is 5 seconds for rapid local testing; in production, 15s to 30s is customary.
+3. **Grafana Authentication**: Uses standard default credentials (`admin`/`admin`) in local development. Production deployments must integrate OAuth2/OIDC.
+
+---
+
+## 25. Suggested Day 11 Objective
+
+> Implement Production Incidents, Incident Lifecycle Management, SLA Tracking, Escalations & Automated Postmortems, binding Golden Signals, traces, logs, and runbooks into automated incident timelines and root-cause postmortem artifacts.
+
 
 
 

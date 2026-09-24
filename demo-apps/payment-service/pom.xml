@@ -55,7 +55,11 @@
             <scope>runtime</scope>
         </dependency>
 
-        <!-- Micrometer Tracing & OpenTelemetry OTLP -->
+        <!-- Micrometer Metrics, Tracing & OpenTelemetry OTLP -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
         <dependency>
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-tracing-bridge-otel</artifactId>

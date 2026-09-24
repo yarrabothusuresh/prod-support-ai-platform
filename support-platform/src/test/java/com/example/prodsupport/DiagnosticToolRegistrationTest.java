@@ -25,8 +25,8 @@ class DiagnosticToolRegistrationTest {
     private DiagnosticToolRegistry toolRegistry;
 
     @Test
-    @DisplayName("Verify all 18 approved diagnostic tools are registered in tool registry")
-    void shouldRegisterAllEighteenApprovedTools() {
+    @DisplayName("Verify all 23 approved diagnostic tools are registered in tool registry")
+    void shouldRegisterAllApprovedTools() {
         Set<String> registeredNames = toolRegistry.getRegisteredToolNames();
 
         assertThat(registeredNames)
@@ -48,11 +48,16 @@ class DiagnosticToolRegistrationTest {
                         ToolAllowlist.TOOL_GET_APPLICATION_LOG_TIMELINE,
                         ToolAllowlist.TOOL_SEARCH_APPLICATION_TRACES,
                         ToolAllowlist.TOOL_GET_TRACE_DETAILS,
-                        ToolAllowlist.TOOL_ANALYZE_SLOW_SPANS
+                        ToolAllowlist.TOOL_ANALYZE_SLOW_SPANS,
+                        ToolAllowlist.TOOL_GET_APPLICATION_METRICS,
+                        ToolAllowlist.TOOL_GET_HTTP_METRICS,
+                        ToolAllowlist.TOOL_GET_JVM_METRICS,
+                        ToolAllowlist.TOOL_GET_RESOURCE_METRICS,
+                        ToolAllowlist.TOOL_GET_ACTIVE_ALERTS
                 );
 
         List<FunctionCallback> callbacks = toolRegistry.getAllCallbacks();
-        assertThat(callbacks).hasSize(18);
+        assertThat(callbacks).hasSize(23);
     }
 
 
@@ -119,6 +124,26 @@ class DiagnosticToolRegistrationTest {
         FunctionCallback slowSpans = toolRegistry.getCallback(ToolAllowlist.TOOL_ANALYZE_SLOW_SPANS);
         assertThat(slowSpans).isNotNull();
         assertThat(slowSpans.getDescription()).contains("slow spans");
+
+        FunctionCallback appMetrics = toolRegistry.getCallback(ToolAllowlist.TOOL_GET_APPLICATION_METRICS);
+        assertThat(appMetrics).isNotNull();
+        assertThat(appMetrics.getDescription()).contains("Retrieve a safe summary of current and recent metrics");
+
+        FunctionCallback httpMetrics = toolRegistry.getCallback(ToolAllowlist.TOOL_GET_HTTP_METRICS);
+        assertThat(httpMetrics).isNotNull();
+        assertThat(httpMetrics.getDescription()).contains("Retrieve HTTP traffic");
+
+        FunctionCallback jvmMetrics = toolRegistry.getCallback(ToolAllowlist.TOOL_GET_JVM_METRICS);
+        assertThat(jvmMetrics).isNotNull();
+        assertThat(jvmMetrics.getDescription()).contains("Retrieve safe JVM memory");
+
+        FunctionCallback resMetrics = toolRegistry.getCallback(ToolAllowlist.TOOL_GET_RESOURCE_METRICS);
+        assertThat(resMetrics).isNotNull();
+        assertThat(resMetrics.getDescription()).contains("Retrieve safe host and process CPU metrics");
+
+        FunctionCallback alerts = toolRegistry.getCallback(ToolAllowlist.TOOL_GET_ACTIVE_ALERTS);
+        assertThat(alerts).isNotNull();
+        assertThat(alerts.getDescription()).contains("Retrieve active Prometheus alerts");
     }
 
     @Test
@@ -142,8 +167,15 @@ class DiagnosticToolRegistrationTest {
         assertThat(ToolAllowlist.isAllowed("search_application_traces")).isTrue();
         assertThat(ToolAllowlist.isAllowed("get_trace_details")).isTrue();
         assertThat(ToolAllowlist.isAllowed("analyze_slow_spans")).isTrue();
+        assertThat(ToolAllowlist.isAllowed("get_application_metrics")).isTrue();
+        assertThat(ToolAllowlist.isAllowed("get_http_metrics")).isTrue();
+        assertThat(ToolAllowlist.isAllowed("get_jvm_metrics")).isTrue();
+        assertThat(ToolAllowlist.isAllowed("get_resource_metrics")).isTrue();
+        assertThat(ToolAllowlist.isAllowed("get_active_alerts")).isTrue();
 
         // Non-approved tools rejected
+        assertThat(ToolAllowlist.isAllowed("execute_promql_query")).isFalse();
+        assertThat(ToolAllowlist.isAllowed("silence_alert")).isFalse();
         assertThat(ToolAllowlist.isAllowed("execute_jaeger_query")).isFalse();
         assertThat(ToolAllowlist.isAllowed("search_any_service")).isFalse();
         assertThat(ToolAllowlist.isAllowed("access_tracing_storage")).isFalse();

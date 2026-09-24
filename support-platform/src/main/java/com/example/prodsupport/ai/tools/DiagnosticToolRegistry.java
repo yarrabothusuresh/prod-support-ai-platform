@@ -39,6 +39,11 @@ public class DiagnosticToolRegistry {
     private final SearchApplicationTracesAiTool searchApplicationTracesAiTool;
     private final GetTraceDetailsAiTool getTraceDetailsAiTool;
     private final AnalyzeSlowSpansAiTool analyzeSlowSpansAiTool;
+    private final GetApplicationMetricsAiTool getApplicationMetricsAiTool;
+    private final GetHttpMetricsAiTool getHttpMetricsAiTool;
+    private final GetJvmMetricsAiTool getJvmMetricsAiTool;
+    private final GetResourceMetricsAiTool getResourceMetricsAiTool;
+    private final GetActiveAlertsAiTool getActiveAlertsAiTool;
     private final ObjectMapper objectMapper;
 
     private final Map<String, FunctionCallback> callbacks = new LinkedHashMap<>();
@@ -61,6 +66,11 @@ public class DiagnosticToolRegistry {
                                   SearchApplicationTracesAiTool searchApplicationTracesAiTool,
                                   GetTraceDetailsAiTool getTraceDetailsAiTool,
                                   AnalyzeSlowSpansAiTool analyzeSlowSpansAiTool,
+                                  GetApplicationMetricsAiTool getApplicationMetricsAiTool,
+                                  GetHttpMetricsAiTool getHttpMetricsAiTool,
+                                  GetJvmMetricsAiTool getJvmMetricsAiTool,
+                                  GetResourceMetricsAiTool getResourceMetricsAiTool,
+                                  GetActiveAlertsAiTool getActiveAlertsAiTool,
                                   ObjectMapper objectMapper) {
         this.applicationInfoAiTool = applicationInfoAiTool;
         this.healthAiTool = healthAiTool;
@@ -80,6 +90,11 @@ public class DiagnosticToolRegistry {
         this.searchApplicationTracesAiTool = searchApplicationTracesAiTool;
         this.getTraceDetailsAiTool = getTraceDetailsAiTool;
         this.analyzeSlowSpansAiTool = analyzeSlowSpansAiTool;
+        this.getApplicationMetricsAiTool = getApplicationMetricsAiTool;
+        this.getHttpMetricsAiTool = getHttpMetricsAiTool;
+        this.getJvmMetricsAiTool = getJvmMetricsAiTool;
+        this.getResourceMetricsAiTool = getResourceMetricsAiTool;
+        this.getActiveAlertsAiTool = getActiveAlertsAiTool;
         this.objectMapper = objectMapper;
 
         initCallbacks();
@@ -251,6 +266,51 @@ public class DiagnosticToolRegistry {
                 .withObjectMapper(objectMapper)
                 .build();
         callbacks.put(AnalyzeSlowSpansAiTool.TOOL_NAME, slowSpansCallback);
+
+        // 19. get_application_metrics
+        FunctionCallback appMetricsCallback = FunctionCallbackWrapper.builder(getApplicationMetricsAiTool)
+                .withName(GetApplicationMetricsAiTool.TOOL_NAME)
+                .withDescription(GetApplicationMetricsAiTool.TOOL_DESCRIPTION)
+                .withInputType(GetApplicationMetricsRequest.class)
+                .withObjectMapper(objectMapper)
+                .build();
+        callbacks.put(GetApplicationMetricsAiTool.TOOL_NAME, appMetricsCallback);
+
+        // 20. get_http_metrics
+        FunctionCallback httpMetricsCallback = FunctionCallbackWrapper.builder(getHttpMetricsAiTool)
+                .withName(GetHttpMetricsAiTool.TOOL_NAME)
+                .withDescription(GetHttpMetricsAiTool.TOOL_DESCRIPTION)
+                .withInputType(GetHttpMetricsRequest.class)
+                .withObjectMapper(objectMapper)
+                .build();
+        callbacks.put(GetHttpMetricsAiTool.TOOL_NAME, httpMetricsCallback);
+
+        // 21. get_jvm_metrics
+        FunctionCallback jvmMetricsCallback = FunctionCallbackWrapper.builder(getJvmMetricsAiTool)
+                .withName(GetJvmMetricsAiTool.TOOL_NAME)
+                .withDescription(GetJvmMetricsAiTool.TOOL_DESCRIPTION)
+                .withInputType(GetJvmMetricsRequest.class)
+                .withObjectMapper(objectMapper)
+                .build();
+        callbacks.put(GetJvmMetricsAiTool.TOOL_NAME, jvmMetricsCallback);
+
+        // 22. get_resource_metrics
+        FunctionCallback resourceMetricsCallback = FunctionCallbackWrapper.builder(getResourceMetricsAiTool)
+                .withName(GetResourceMetricsAiTool.TOOL_NAME)
+                .withDescription(GetResourceMetricsAiTool.TOOL_DESCRIPTION)
+                .withInputType(GetResourceMetricsRequest.class)
+                .withObjectMapper(objectMapper)
+                .build();
+        callbacks.put(GetResourceMetricsAiTool.TOOL_NAME, resourceMetricsCallback);
+
+        // 23. get_active_alerts
+        FunctionCallback activeAlertsCallback = FunctionCallbackWrapper.builder(getActiveAlertsAiTool)
+                .withName(GetActiveAlertsAiTool.TOOL_NAME)
+                .withDescription(GetActiveAlertsAiTool.TOOL_DESCRIPTION)
+                .withInputType(GetActiveAlertsRequest.class)
+                .withObjectMapper(objectMapper)
+                .build();
+        callbacks.put(GetActiveAlertsAiTool.TOOL_NAME, activeAlertsCallback);
 
         log.info("Successfully registered {} diagnostic tools: {}", callbacks.size(), callbacks.keySet());
     }

@@ -20,21 +20,30 @@ public class PaymentController {
     private final ObjectProvider<com.example.paymentservice.service.PaymentProducer> paymentProducerProvider;
     private final ObjectProvider<com.example.paymentservice.repository.PaymentRecordRepository> paymentRepositoryProvider;
     private final ObjectProvider<io.micrometer.tracing.Tracer> tracerProvider;
+    private final ObjectProvider<io.micrometer.core.instrument.MeterRegistry> meterRegistryProvider;
 
     public PaymentController(ObjectProvider<RecentErrorStore> errorStoreProvider,
                              ObjectProvider<DependencyHealthService> healthServiceProvider,
                              ObjectProvider<com.example.paymentservice.service.PaymentProducer> paymentProducerProvider,
                              ObjectProvider<com.example.paymentservice.repository.PaymentRecordRepository> paymentRepositoryProvider,
-                             ObjectProvider<io.micrometer.tracing.Tracer> tracerProvider) {
+                             ObjectProvider<io.micrometer.tracing.Tracer> tracerProvider,
+                             ObjectProvider<io.micrometer.core.instrument.MeterRegistry> meterRegistryProvider) {
         this.errorStoreProvider = errorStoreProvider;
         this.healthServiceProvider = healthServiceProvider;
         this.paymentProducerProvider = paymentProducerProvider;
         this.paymentRepositoryProvider = paymentRepositoryProvider;
         this.tracerProvider = tracerProvider;
+        this.meterRegistryProvider = meterRegistryProvider;
     }
 
     @PostMapping
     public ResponseEntity<Map<String, Object>> createPayment(@RequestBody(required = false) com.example.paymentservice.dto.CreatePaymentRequest request) {
+        io.micrometer.core.instrument.MeterRegistry registry = meterRegistryProvider.getIfAvailable();
+        io.micrometer.core.instrument.Timer.Sample timerSample = (registry != null) ? io.micrometer.core.instrument.Timer.start(registry) : null;
+        if (registry != null) {
+            registry.counter("payment_requests_total", "operation", "create").increment();
+        }
+
         Tracer tracer = tracerProvider.getIfAvailable();
 
         // 1. Validate payment span
@@ -118,6 +127,13 @@ public class PaymentController {
         }
         if (activeSpanId != null) {
             responseBody.put("spanId", activeSpanId);
+        }
+
+        if (registry != null) {
+            registry.counter("payment_success_total", "status", "accepted").increment();
+            if (timerSample != null) {
+                timerSample.stop(registry.timer("payment_processing_duration_seconds", "status", "success"));
+            }
         }
 
         return ResponseEntity.status(org.springframework.http.HttpStatus.ACCEPTED).body(responseBody);

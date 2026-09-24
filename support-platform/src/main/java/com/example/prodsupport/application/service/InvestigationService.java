@@ -53,6 +53,9 @@ public class InvestigationService {
     private final com.example.prodsupport.tracing.service.TraceSearchService traceSearchService;
     private final com.example.prodsupport.tracing.client.TraceSearchClient traceSearchClient;
     private final com.example.prodsupport.tracing.service.TraceAnalysisService traceAnalysisService;
+    private final com.example.prodsupport.metrics.service.ApplicationMetricsService applicationMetricsService;
+    private final com.example.prodsupport.metrics.service.PrometheusAlertService prometheusAlertService;
+    private final com.example.prodsupport.metrics.config.MetricsProperties metricsProperties;
     private final ChatModel chatModel;
     private final SupportPromptBuilder promptBuilder;
     private final AiProperties aiProperties;
@@ -70,6 +73,9 @@ public class InvestigationService {
                                 com.example.prodsupport.tracing.service.TraceSearchService traceSearchService,
                                 com.example.prodsupport.tracing.client.TraceSearchClient traceSearchClient,
                                 com.example.prodsupport.tracing.service.TraceAnalysisService traceAnalysisService,
+                                com.example.prodsupport.metrics.service.ApplicationMetricsService applicationMetricsService,
+                                com.example.prodsupport.metrics.service.PrometheusAlertService prometheusAlertService,
+                                com.example.prodsupport.metrics.config.MetricsProperties metricsProperties,
                                 ChatModel chatModel,
                                 SupportPromptBuilder promptBuilder,
                                 AiProperties aiProperties,
@@ -86,6 +92,9 @@ public class InvestigationService {
         this.traceSearchService = traceSearchService;
         this.traceSearchClient = traceSearchClient;
         this.traceAnalysisService = traceAnalysisService;
+        this.applicationMetricsService = applicationMetricsService;
+        this.prometheusAlertService = prometheusAlertService;
+        this.metricsProperties = metricsProperties;
         this.chatModel = chatModel;
         this.promptBuilder = promptBuilder;
         this.aiProperties = aiProperties;
@@ -337,6 +346,48 @@ public class InvestigationService {
             }
         } catch (Exception ex) {
             warnings.add("Distributed tracing diagnostic unavailable: " + ex.getMessage());
+        }
+
+        // 9. Production Metrics & Prometheus Alerts
+        try {
+            if (metricsProperties != null && metricsProperties.isEnabled() && applicationMetricsService != null && applicationMetricsService.isMetricsConfiguredAndEnabled(app)) {
+                toolsUsed.add(ToolAllowlist.TOOL_GET_APPLICATION_METRICS);
+                var metricsSummary = applicationMetricsService.getMetricsSummary(appName, environment, 5);
+                if (metricsSummary.availability() != null && metricsSummary.availability().available()) {
+                    Double reqRate = metricsSummary.http() != null ? metricsSummary.http().requestRatePerSecond() : null;
+                    Double errPct = metricsSummary.http() != null ? metricsSummary.http().errorPercentage() : null;
+                    Double p95 = metricsSummary.http() != null ? metricsSummary.http().p95LatencyMs() : null;
+                    Double heap = metricsSummary.jvm() != null ? metricsSummary.jvm().heapUsedMb() : null;
+                    Integer activeDb = metricsSummary.databasePool() != null ? metricsSummary.databasePool().activeConnections() : null;
+                    observedFacts.add(String.format("Metrics summary (5m): requestRate=%.2f req/s, errorPercentage=%.2f%%, p95Latency=%.1fms, jvmHeapUsed=%.1fMB, activeDbConnections=%d",
+                            reqRate != null ? reqRate : 0.0,
+                            errPct != null ? errPct : 0.0,
+                            p95 != null ? p95 : 0.0,
+                            heap != null ? heap : 0.0,
+                            activeDb != null ? activeDb : 0));
+                } else {
+                    observedFacts.add("Metrics query returned NO DATA for application '" + appName + "' over last 5m");
+                }
+                if (metricsSummary.warnings() != null) {
+                    warnings.addAll(metricsSummary.warnings());
+                }
+
+                // Active Alerts
+                try {
+                    toolsUsed.add(ToolAllowlist.TOOL_GET_ACTIVE_ALERTS);
+                    var alertResult = prometheusAlertService.getActiveAlerts(appName, environment);
+                    if (alertResult.activeAlerts() != null && !alertResult.activeAlerts().isEmpty()) {
+                        observedFacts.add("Active Prometheus alerts (" + alertResult.activeAlerts().size() + "): " +
+                                String.join(", ", alertResult.activeAlerts().stream().map(a -> a.alertName() + " (" + a.severity() + ")").toList()));
+                    }
+                } catch (Exception ex) {
+                    log.warn("Active alert query failed: {}", ex.getMessage());
+                }
+            } else if (metricsProperties != null && !metricsProperties.isEnabled()) {
+                warnings.add("Production metrics collection is currently disabled.");
+            }
+        } catch (Exception ex) {
+            warnings.add("Metrics diagnostic unavailable: " + ex.getMessage());
         }
 
         // Build ApplicationSupportContext for model prompting

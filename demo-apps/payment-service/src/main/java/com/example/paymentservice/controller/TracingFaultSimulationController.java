@@ -35,15 +35,18 @@ public class TracingFaultSimulationController {
     private final ObjectProvider<PaymentRecordRepository> repositoryProvider;
     private final ObjectProvider<PaymentProducer> producerProvider;
     private final ObjectProvider<RecentErrorStore> errorStoreProvider;
+    private final ObjectProvider<io.micrometer.core.instrument.MeterRegistry> meterRegistryProvider;
 
     public TracingFaultSimulationController(ObjectProvider<Tracer> tracerProvider,
                                             ObjectProvider<PaymentRecordRepository> repositoryProvider,
                                             ObjectProvider<PaymentProducer> producerProvider,
-                                            ObjectProvider<RecentErrorStore> errorStoreProvider) {
+                                            ObjectProvider<RecentErrorStore> errorStoreProvider,
+                                            ObjectProvider<io.micrometer.core.instrument.MeterRegistry> meterRegistryProvider) {
         this.tracerProvider = tracerProvider;
         this.repositoryProvider = repositoryProvider;
         this.producerProvider = producerProvider;
         this.errorStoreProvider = errorStoreProvider;
+        this.meterRegistryProvider = meterRegistryProvider;
     }
 
     @PostMapping("/slow-payment")
@@ -181,6 +184,11 @@ public class TracingFaultSimulationController {
         }
         if (activeSpanId != null) {
             body.put("spanId", activeSpanId);
+        }
+
+        io.micrometer.core.instrument.MeterRegistry registry = meterRegistryProvider.getIfAvailable();
+        if (registry != null) {
+            registry.counter("payment_failure_total", "status", "failed", "error_type", errorType).increment();
         }
 
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);

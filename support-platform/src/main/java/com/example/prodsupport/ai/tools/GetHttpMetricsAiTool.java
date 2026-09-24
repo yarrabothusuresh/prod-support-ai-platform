@@ -1,0 +1,135 @@
+package com.example.prodsupport.ai.tools;
+
+import com.example.prodsupport.ai.tools.audit.ToolExecutionAudit;
+import com.example.prodsupport.ai.tools.audit.ToolExecutionAuditor;
+import com.example.prodsupport.ai.tools.context.InvestigationContext;
+import com.example.prodsupport.ai.tools.context.InvestigationContextHolder;
+import com.example.prodsupport.ai.tools.model.GetHttpMetricsRequest;
+import com.example.prodsupport.ai.tools.model.ToolExecutionResult;
+import com.example.prodsupport.ai.tools.security.ApplicationAccessValidator;
+import com.example.prodsupport.ai.tools.security.ToolAllowlist;
+import com.example.prodsupport.domain.RegisteredApplication;
+import com.example.prodsupport.metrics.dto.ApplicationMetricsSummaryDto.HttpMetricsDto;
+import com.example.prodsupport.metrics.entity.ApplicationMetricsConfigEntity;
+import com.example.prodsupport.metrics.service.ApplicationMetricsConfigService;
+import com.example.prodsupport.metrics.service.ApplicationMetricsService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
+
+import java.time.Duration;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Function;
+
+@Component
+public class GetHttpMetricsAiTool implements Function<GetHttpMetricsRequest, ToolExecutionResult<HttpMetricsDto>> {
+
+    private static final Logger log = LoggerFactory.getLogger(GetHttpMetricsAiTool.class);
+
+    public static final String TOOL_NAME = ToolAllowlist.TOOL_GET_HTTP_METRICS;
+    public static final String TOOL_DESCRIPTION = "Retrieve HTTP traffic, error-rate and latency evidence " +
+            "for a registered application. Use this tool when investigating slow requests, " +
+            "high failure rates or changes in request volume.";
+
+    private final ApplicationAccessValidator accessValidator;
+    private final ApplicationMetricsConfigService configService;
+    private final ApplicationMetricsService metricsService;
+    private final ToolExecutionAuditor auditor;
+
+    public GetHttpMetricsAiTool(ApplicationAccessValidator accessValidator,
+                               ApplicationMetricsConfigService configService,
+                               ApplicationMetricsService metricsService,
+                               ToolExecutionAuditor auditor) {
+        this.accessValidator = accessValidator;
+        this.configService = configService;
+        this.metricsService = metricsService;
+        this.auditor = auditor;
+    }
+
+    @Override
+    public ToolExecutionResult<HttpMetricsDto> apply(GetHttpMetricsRequest request) {
+        Instant startTime = Instant.now();
+        InvestigationContext context = InvestigationContextHolder.getContext();
+
+        if (context != null) {
+            context.recordToolRequested(TOOL_NAME);
+            if (!context.canExecuteTool()) {
+                String warning = "Investigation reached maximum diagnostic steps. Answer is based on currently available evidence.";
+                context.recordWarning(warning);
+                ToolExecutionResult<HttpMetricsDto> limitResult = ToolExecutionResult.failure(TOOL_NAME, warning, startTime, 0);
+                context.recordToolExecution(limitResult);
+                return limitResult;
+            }
+            context.incrementExecutionCount();
+        }
+
+        if (request == null || request.applicationName() == null || request.applicationName().isBlank()
+                || request.environment() == null || request.environment().isBlank()) {
+            String warning = "Invalid parameters: applicationName and environment must not be blank";
+            auditor.audit(new ToolExecutionAudit(TOOL_NAME, request != null ? request.applicationName() : "unknown",
+                    request != null ? request.environment() : "unknown", startTime, Instant.now(), 0, false, warning));
+            ToolExecutionResult<HttpMetricsDto> invalidResult = ToolExecutionResult.failure(TOOL_NAME, warning, startTime, 0);
+            if (context != null) {
+                context.recordToolExecution(invalidResult);
+            }
+            return invalidResult;
+        }
+
+        RegisteredApplication app;
+        try {
+            app = accessValidator.validateAndGet(request.applicationName(), request.environment());
+        } catch (Exception ex) {
+            long duration = Duration.between(startTime, Instant.now()).toMillis();
+            String failureReason = ex.getMessage();
+            auditor.audit(new ToolExecutionAudit(TOOL_NAME, request.applicationName(), request.environment(),
+                    startTime, Instant.now(), duration, false, failureReason));
+            ToolExecutionResult<HttpMetricsDto> authResult = ToolExecutionResult.failure(TOOL_NAME, failureReason, startTime, duration);
+            if (context != null) {
+                context.recordToolExecution(authResult);
+            }
+            return authResult;
+        }
+
+        int minutes = (request.minutes() != null && request.minutes() > 0) ? request.minutes() : 15;
+        ApplicationMetricsConfigEntity config = configService.findEntityByApplication(app)
+                .orElseGet(() -> new ApplicationMetricsConfigEntity(app, true, app.getApplicationName(), app.getApplicationName()));
+
+        try {
+            List<String> warnings = new ArrayList<>();
+            HttpMetricsDto http = metricsService.getHttpMetrics(config.getApplicationLabel(), minutes, warnings);
+            long duration = Duration.between(startTime, Instant.now()).toMillis();
+
+            auditor.audit(new ToolExecutionAudit(TOOL_NAME, app.getApplicationName(), app.getEnvironment(),
+                    startTime, Instant.now(), duration, true, null));
+
+            ToolExecutionResult<HttpMetricsDto> result = ToolExecutionResult.success(TOOL_NAME, http, startTime, duration);
+
+            if (context != null) {
+                context.recordToolExecution(result);
+                StringBuilder sb = new StringBuilder();
+                sb.append(String.format("HTTP metrics for %s (last %dm): ", app.getApplicationName(), minutes));
+                sb.append(String.format("reqRate=%.2f req/s, errorRate=%.2f%%, p95Latency=%s ms, avgLatency=%s ms",
+                        http.requestRatePerSecond() != null ? http.requestRatePerSecond() : 0.0,
+                        http.errorPercentage() != null ? http.errorPercentage() : 0.0,
+                        http.p95LatencyMs() != null ? http.p95LatencyMs().toString() : "N/A",
+                        http.avgLatencyMs() != null ? http.avgLatencyMs().toString() : "N/A"));
+                context.recordEvidence(sb.toString());
+            }
+
+            return result;
+        } catch (Exception ex) {
+            long duration = Duration.between(startTime, Instant.now()).toMillis();
+            String errorMsg = ex.getMessage() != null ? ex.getMessage() : ex.getClass().getSimpleName();
+            auditor.audit(new ToolExecutionAudit(TOOL_NAME, app.getApplicationName(), app.getEnvironment(),
+                    startTime, Instant.now(), duration, false, errorMsg));
+            ToolExecutionResult<HttpMetricsDto> errorResult = ToolExecutionResult.failure(TOOL_NAME, errorMsg, startTime, duration);
+            if (context != null) {
+                context.recordToolExecution(errorResult);
+                context.recordEvidence("HTTP metrics check failed: " + errorMsg);
+            }
+            return errorResult;
+        }
+    }
+}

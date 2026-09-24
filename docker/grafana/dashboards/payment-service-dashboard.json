@@ -1,0 +1,240 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "id": 1,
+      "title": "Application Availability",
+      "type": "stat",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "up{job=\"payment-service\"}",
+          "legendFormat": "{{application}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "options": { "0": { "color": "red", "text": "DOWN" }, "1": { "color": "green", "text": "UP" } }, "type": "value" }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "id": 2,
+      "title": "HTTP Request Rate (req/s)",
+      "type": "stat",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(rate(http_server_requests_seconds_count{application=\"payment-service\"}[1m]))",
+          "legendFormat": "req/sec",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "id": 3,
+      "title": "HTTP 5xx Error Rate (%)",
+      "type": "stat",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "(sum(rate(http_server_requests_seconds_count{application=\"payment-service\",status=~\"5..\"}[1m])) / sum(rate(http_server_requests_seconds_count{application=\"payment-service\"}[1m]))) * 100 or vector(0)",
+          "legendFormat": "Error %",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 2 },
+              { "color": "red", "value": 5 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "id": 4,
+      "title": "JVM Heap Utilization (%)",
+      "type": "stat",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "(sum(jvm_memory_used_bytes{application=\"payment-service\",area=\"heap\"}) / sum(jvm_memory_max_bytes{application=\"payment-service\",area=\"heap\"})) * 100",
+          "legendFormat": "Heap %",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 70 },
+              { "color": "red", "value": 85 }
+            ]
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "id": 5,
+      "title": "HTTP Traffic & Error Rates Over Time",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "sum(rate(http_server_requests_seconds_count{application=\"payment-service\"}[1m]))",
+          "legendFormat": "Total Requests (req/s)",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(http_server_requests_seconds_count{application=\"payment-service\",status=~\"5..\"}[1m]))",
+          "legendFormat": "5xx Server Errors (req/s)",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "id": 6,
+      "title": "HTTP Latency (p95 & Average)",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket{application=\"payment-service\"}[2m])) by (le)) * 1000",
+          "legendFormat": "p95 Latency (ms)",
+          "refId": "A"
+        },
+        {
+          "expr": "(sum(rate(http_server_requests_seconds_sum{application=\"payment-service\"}[2m])) / sum(rate(http_server_requests_seconds_count{application=\"payment-service\"}[2m]))) * 1000",
+          "legendFormat": "Avg Latency (ms)",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "id": 7,
+      "title": "HikariCP Connection Pool",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "hikaricp_connections_active{application=\"payment-service\"}",
+          "legendFormat": "Active Connections",
+          "refId": "A"
+        },
+        {
+          "expr": "hikaricp_connections_idle{application=\"payment-service\"}",
+          "legendFormat": "Idle Connections",
+          "refId": "B"
+        },
+        {
+          "expr": "hikaricp_connections_pending{application=\"payment-service\"}",
+          "legendFormat": "Pending (Waiting) Threads",
+          "refId": "C"
+        },
+        {
+          "expr": "hikaricp_connections_max{application=\"payment-service\"}",
+          "legendFormat": "Max Connections",
+          "refId": "D"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "id": 8,
+      "title": "CPU Utilization",
+      "type": "timeseries",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "process_cpu_usage{application=\"payment-service\"} * 100",
+          "legendFormat": "Process CPU (%)",
+          "refId": "A"
+        },
+        {
+          "expr": "system_cpu_usage{application=\"payment-service\"} * 100",
+          "legendFormat": "System CPU (%)",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "max": 100,
+          "min": 0
+        },
+        "overrides": []
+      }
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": ["prod-support", "payment-service", "golden-signals"],
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": ["5s", "10s", "30s", "1m", "5m"]
+  },
+  "timezone": "browser",
+  "title": "Payment Service - Production Support",
+  "uid": "payment-service-support",
+  "version": 1
+}

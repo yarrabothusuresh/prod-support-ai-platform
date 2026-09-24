@@ -1,0 +1,42 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+
+rule_files:
+  - "/etc/prometheus/rules/*.yml"
+
+scrape_configs:
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: "payment-service"
+    metrics_path: "/actuator/prometheus"
+    scrape_interval: 10s
+    static_configs:
+      - targets:
+          - "host.docker.internal:8081"
+        labels:
+          application: "payment-service"
+          environment: "local"
+
+  - job_name: "notification-service"
+    metrics_path: "/actuator/prometheus"
+    scrape_interval: 10s
+    static_configs:
+      - targets:
+          - "host.docker.internal:8082"
+        labels:
+          application: "notification-service"
+          environment: "local"
+
+  - job_name: "support-platform"
+    metrics_path: "/actuator/prometheus"
+    scrape_interval: 10s
+    static_configs:
+      - targets:
+          - "host.docker.internal:8080"
+        labels:
+          application: "support-platform"
+          environment: "local"

@@ -31,6 +31,13 @@ public final class ToolAllowlist {
     public static final String TOOL_GET_TRACE_DETAILS = "get_trace_details";
     public static final String TOOL_ANALYZE_SLOW_SPANS = "analyze_slow_spans";
 
+    // Prometheus Production Metrics & Alert Tools (Safe Read-Only Predefined Queries)
+    public static final String TOOL_GET_APPLICATION_METRICS = "get_application_metrics";
+    public static final String TOOL_GET_HTTP_METRICS = "get_http_metrics";
+    public static final String TOOL_GET_JVM_METRICS = "get_jvm_metrics";
+    public static final String TOOL_GET_RESOURCE_METRICS = "get_resource_metrics";
+    public static final String TOOL_GET_ACTIVE_ALERTS = "get_active_alerts";
+
     public static final Set<String> APPROVED_TOOLS = Set.of(
             TOOL_GET_APPLICATION_INFO,
             TOOL_CHECK_APPLICATION_HEALTH,
@@ -49,7 +56,12 @@ public final class ToolAllowlist {
             TOOL_GET_APPLICATION_LOG_TIMELINE,
             TOOL_SEARCH_APPLICATION_TRACES,
             TOOL_GET_TRACE_DETAILS,
-            TOOL_ANALYZE_SLOW_SPANS
+            TOOL_ANALYZE_SLOW_SPANS,
+            TOOL_GET_APPLICATION_METRICS,
+            TOOL_GET_HTTP_METRICS,
+            TOOL_GET_JVM_METRICS,
+            TOOL_GET_RESOURCE_METRICS,
+            TOOL_GET_ACTIVE_ALERTS
     );
 
     private ToolAllowlist() {}

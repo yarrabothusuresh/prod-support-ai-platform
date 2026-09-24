@@ -67,10 +67,19 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics,prometheus
   endpoint:
     health:
       show-details: always
+    prometheus:
+      enabled: true
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+    tags:
+      application: ${spring.application.name}
+      environment: ${prod-support.application.environment:local}
   tracing:
     sampling:
       probability: 1.0

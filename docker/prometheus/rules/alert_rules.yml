@@ -1,0 +1,47 @@
+groups:
+  - name: production-support-alerts
+    rules:
+      - alert: ApplicationDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Application {{ $labels.application }} is down"
+          description: "Instance {{ $labels.instance }} for application {{ $labels.application }} (job {{ $labels.job }}) has been unreachable for more than 1 minute."
+
+      - alert: HighHttpErrorRate
+        expr: (sum by (application, environment) (rate(http_server_requests_seconds_count{status=~"5.."}[1m])) / sum by (application, environment) (rate(http_server_requests_seconds_count[1m]))) * 100 > 5
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High HTTP 5xx error rate on {{ $labels.application }}"
+          description: "HTTP 5xx server error rate exceeds 5% over the last 1 minute on {{ $labels.application }} (current: {{ $value | printf \"%.2f\" }}%)."
+
+      - alert: HighHttpLatency
+        expr: histogram_quantile(0.95, sum by (application, environment, le) (rate(http_server_requests_seconds_bucket[2m]))) * 1000 > 800
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High HTTP latency on {{ $labels.application }}"
+          description: "95th percentile response latency exceeds 800ms over 2 minutes on {{ $labels.application }} (current: {{ $value | printf \"%.0f\" }}ms)."
+
+      - alert: HighJvmHeapUsage
+        expr: (sum by (application, environment) (jvm_memory_used_bytes{area="heap"}) / sum by (application, environment) (jvm_memory_max_bytes{area="heap"})) * 100 > 85
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High JVM heap usage on {{ $labels.application }}"
+          description: "JVM heap memory utilization exceeds 85% for more than 2 minutes on {{ $labels.application }} (current: {{ $value | printf \"%.2f\" }}%)."
+
+      - alert: HighDatabasePoolUtilization
+        expr: (hikaricp_connections_active / hikaricp_connections_max) * 100 > 85
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High database connection pool utilization on {{ $labels.application }}"
+          description: "HikariCP active connections exceed 85% of maximum capacity for more than 1 minute on {{ $labels.application }} (current: {{ $value | printf \"%.2f\" }}%)."
